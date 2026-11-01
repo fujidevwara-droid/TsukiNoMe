@@ -1,12 +1,26 @@
 --
 -- SelectLayer
 --
+
+-- Not loaded by framework/init.lua like display/audio/ui are, so it needs its
+-- own require. Used by the locked-hero popup to cycle its requirement text.
+local scheduler = require(cc.PACKAGE_NAME .. '.scheduler')
+
 function SelectLayer:init()
     log('Initial SelectLayer...')
 
     self.mode = _G.mode
     self.enableCustomSelect = _G.enableCustomSelect
-    if self.mode == GameMode.Clone or self.mode == GameMode.OneVsOne then
+
+    -- Duels / Arcade: one hero on the field and two on the bench. You pick all
+    -- three; the enemy side is rolled by the game.
+    self.isArenaMode = self.mode == GameMode.Duels or self.mode == GameMode.Arcade
+
+    if self.isArenaMode then
+        self.enableCustomSelect = true
+        self.is3v3Mode = false
+        self.is4v4Mode = false
+    elseif self.mode == GameMode.Clone or self.mode == GameMode.OneVsOne then
         self.enableCustomSelect = false
         self.is3v3Mode = false
         self.is4v4Mode = false
@@ -163,6 +177,7 @@ function SelectLayer:init()
         local select_btn = SelectButton:create(charName .. '_select.png')
         select_btn._selectLayer = self
         select_btn._charName = charName
+        select_btn:refreshLockedVisual()
         --           -- LAYOUT --
         -- --- LEFT ---        --- RIGHT ---
         -- 1, 2, 3, 4, padding 5, 6, 7
@@ -215,7 +230,9 @@ function SelectLayer:init()
     self.selectHero = selectBtn._charName
 
     if self.enableCustomSelect then
-        if self.is3v3Mode or self.is4v4Mode then
+        if self.isArenaMode then
+            self:initCustomSelectModeArena()
+        elseif self.is3v3Mode or self.is4v4Mode then
             self:initCustomSelectMode()
         end
     end
@@ -342,6 +359,35 @@ function SelectLayer:initCustomSelectMode()
     self:addChild(teamSelector, 50)
 end
 
+-- Arena: two bench slots next to the player's own pick.
+function SelectLayer:initCustomSelectModeArena()
+    log('Initial Custom Select Mode (arena)...')
+    local teamSelector = display.newLayer()
+
+    local teamBg = display.newSprite('#team_bg.png', 0, 185)
+    teamBg:setAnchorPoint(0, 0)
+    teamSelector:addChild(teamBg)
+
+    local function addSlot(x, y)
+        local selector = display.newSprite('#unknow_select.png', x, y)
+        selector:setAnchorPoint(0, 0)
+        teamSelector:addChild(selector)
+
+        local label = display.newSprite('#com_label.png')
+        label:setPosition(x + selector:getContentSize().width + 2 + 18,
+                          y + selector:getContentSize().height / 2)
+        teamSelector:addChild(label)
+        return selector, label
+    end
+
+    local x1, y = 2, 194
+    self._allySelector1, self._allyLabel1 = addSlot(x1, y)
+    local width1 = self._allySelector1:getContentSize().width
+    self._allySelector2, self._allyLabel2 = addSlot(x1 + width1 + 40, y)
+
+    self:addChild(teamSelector, 50)
+end
+
 function SelectLayer:onQuestBtn()
     -- not support
     self:setTip('ComingSoon')
@@ -405,6 +451,8 @@ function SelectLayer:setSelected(btn)
             else
                 if self._comLabel1 then
                     self._comLabel1:runAction(seq)
+                elseif self._allyLabel1 then
+                    self._allyLabel1:runAction(seq)
                 end
             end
         end
@@ -420,6 +468,38 @@ function SelectLayer:setSelected(btn)
         self._heroName = display.newSprite(charName .. '_font.png', 100, 20)
         self._heroName:setAnchorPoint(CCPoint(0.5, 0))
         self:addChild(self._heroName, 5)
+    elseif self.isArenaMode and not self._com1Select then
+        self._allySelector1:setDisplayFrame(
+            display.newSpriteFrame(self.selectHero .. '_small.png'))
+
+        if btn._clickTime >= 2 then
+            self._com1Select = self.selectHero
+            self:setCom1Select(self._com1Select)
+
+            self._allyLabel1:stopAllActions()
+            self._allyLabel1:setOpacity(255)
+            self._allyLabel1:setDisplayFrame(
+                display.newSpriteFrame('com_label2.png'))
+
+            -- the second slot takes over the blinking
+            self._allyLabel2:runAction(seq)
+        end
+    elseif self.isArenaMode and not self._com2Select then
+        self._allySelector2:setDisplayFrame(
+            display.newSpriteFrame(self.selectHero .. '_small.png'))
+
+        if btn._clickTime >= 2 then
+            self._com2Select = self.selectHero
+            self:setCom2Select(self._com2Select)
+
+            self._allyLabel2:stopAllActions()
+            self._allyLabel2:setOpacity(255)
+            self._allyLabel2:setDisplayFrame(
+                display.newSpriteFrame('com_label2.png'))
+
+            self._selectImg:removeFromParent()
+            self._selectImg = nil
+        end
     elseif not self._com1Select then
         self._comSelector1:setDisplayFrame(
             display.newSpriteFrame(self.selectHero .. '_small.png'))
@@ -466,7 +546,10 @@ function SelectLayer:setSelected(btn)
 end
 
 function SelectLayer:noComSelect()
-    if self.is4v4Mode then
+    if self.isArenaMode then
+        -- done once both bench slots are filled
+        return self._com2Select
+    elseif self.is4v4Mode then
         return self._com3Select
     elseif self.is3v3Mode then
         return self._com2Select
@@ -486,4 +569,114 @@ function backToStartMenu()
     hook.registerInitHandlerOnly(menuLayer)
     menuScene:addChild(menuLayer)
     director.replaceSceneWithFade(menuScene, 1)
+end
+
+local function wordWrap(text, maxCharsPerLine)
+    local lines = {}
+    local currentLine = ''
+
+    for word in text:gmatch('%S+') do
+        if #currentLine == 0 then
+            currentLine = word
+        elseif #currentLine + 1 + #word <= maxCharsPerLine then
+            currentLine = currentLine .. ' ' .. word
+        else
+            table.insert(lines, currentLine)
+            currentLine = word
+        end
+    end
+    if #currentLine > 0 then table.insert(lines, currentLine) end
+
+    return table.concat(lines, '\n')
+end
+
+local function hasFrame(name)
+    return CCSpriteFrameCache:sharedSpriteFrameCache():spriteFrameByName(name) ~= nil
+end
+
+-- Shown when a locked hero is confirmed: what to do to unlock it. A hero with
+-- several requirements cycles through them every two seconds.
+function SelectLayer:showLockedCharPopup(heroName)
+    -- Do not stack a second popup on top of one that is showing.
+    if self._lockedPopupLayer then return end
+
+    audio.playSound('Audio/Menu/select.ogg')
+
+    local width, height = display.width, display.height
+    local layer = CCLayer:create()
+
+    local bg = display.newSprite('#confirm_bg.png', width / 2, height / 2)
+    bg:setScaleY(1.25) -- taller than the confirm popup, same width
+    layer:addChild(bg, 1)
+
+    -- The title art is optional; a text label stands in without it.
+    local title
+    if hasFrame('locked_title.png') then
+        title = display.newSprite('#locked_title.png', width / 2, height / 2 + 60)
+    else
+        title = CCLabelBMFont:create('LOCKED', 'Fonts/1.fnt')
+        title:setScale(0.5)
+        title:setPosition(width / 2, height / 2 + 60)
+    end
+    layer:addChild(title, 2)
+
+    local labelScale = 0.35
+
+    local wrapLimit = string.len(tostring(heroName)) > 8 and 22 or 26
+    local header = wordWrap(
+        string.format('Unlock the character [%s] by doing the following:',
+                      tostring(heroName)), wrapLimit)
+    local headerLabel = CCLabelBMFont:create(header, 'Fonts/1.fnt',
+                                             kCCLabelAutomaticWidth,
+                                             kCCTextAlignmentCenter)
+    headerLabel:setScale(labelScale)
+    headerLabel:setPosition(width / 2, height / 2 + 28)
+    layer:addChild(headerLabel, 2)
+
+    -- one string, lines separated by "\n" (the bridge only passes strings)
+    local lines = {}
+    for line in string.gmatch(KTools:getUnlockConditionLines(heroName), '([^\n]+)') do
+        table.insert(lines, wordWrap(line, 28))
+    end
+    if #lines == 0 then lines = {''} end
+
+    local conditionLabel = CCLabelBMFont:create(lines[1], 'Fonts/1.fnt',
+                                                kCCLabelAutomaticWidth,
+                                                kCCTextAlignmentCenter)
+    conditionLabel:setScale(labelScale)
+    conditionLabel:setPosition(width / 2, height / 2 - 12)
+    layer:addChild(conditionLabel, 2)
+
+    local cycleHandle
+    if #lines > 1 then
+        local idx = 1
+        cycleHandle = scheduler.scheduleGlobal(function()
+            idx = idx % #lines + 1
+            conditionLabel:setString(lines[idx])
+        end, 2.0)
+    end
+
+    local function closePopup()
+        if cycleHandle then
+            scheduler.unscheduleGlobal(cycleHandle)
+            cycleHandle = nil
+        end
+        layer:removeFromParent()
+        self._lockedPopupLayer = nil
+    end
+
+    -- ok_btn art is optional too: the confirm popup's own button stands in.
+    local okName = hasFrame('ok_btn1.png') and 'ok' or 'yes'
+    local okItem = ui.newImageMenuItem({
+        image = '#' .. okName .. '_btn1.png',
+        imageSelected = '#' .. okName .. '_btn2.png',
+        listener = closePopup,
+        sound = 'Audio/Menu/confirm.ogg',
+        x = width / 2,
+        y = height / 2 - 48
+    })
+    layer:addChild(ui.newMenu({okItem}), 2)
+
+    self._lockedPopupLayer = layer
+    self:addChild(layer, 5000)
 end

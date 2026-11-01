@@ -68048,6 +68048,454 @@ static int tolua_Cocos2d_KTools_encodeData00(lua_State* tolua_S)
 }
 #endif //#ifndef TOLUA_DISABLE
 
+/* method: readDuelBestTime of class  KTools */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_KTools_readDuelBestTime00
+static int tolua_Cocos2d_KTools_readDuelBestTime00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"KTools",0,&tolua_err) ||
+     !tolua_isstring(tolua_S,2,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const char* heroName = ((const char*)  tolua_tostring(tolua_S,2,0));
+  {
+   string tolua_ret = (string)  KTools::readDuelBestTime(heroName);
+   tolua_pushcppstring(tolua_S,(const char*)tolua_ret);
+  }
+ }
+ return 1;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'readDuelBestTime'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: saveDuelBestTime of class  KTools */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_KTools_saveDuelBestTime00
+static int tolua_Cocos2d_KTools_saveDuelBestTime00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"KTools",0,&tolua_err) ||
+     !tolua_isstring(tolua_S,2,0,&tolua_err) ||
+     !tolua_iscppstring(tolua_S,3,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,4,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const char* heroName = ((const char*)  tolua_tostring(tolua_S,2,0));
+  const string time = ((const string)  tolua_tocppstring(tolua_S,3,0));
+  {
+   KTools::saveDuelBestTime(heroName,time);
+  }
+ }
+ return 0;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'saveDuelBestTime'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: readArcadeStreak of class  KTools */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_KTools_readArcadeStreak00
+static int tolua_Cocos2d_KTools_readArcadeStreak00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"KTools",0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,2,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  {
+   int tolua_ret = (int)  KTools::readArcadeStreak();
+   tolua_pushnumber(tolua_S,(lua_Number)tolua_ret);
+  }
+ }
+ return 1;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'readArcadeStreak'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: saveArcadeStreak of class  KTools */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_KTools_saveArcadeStreak00
+static int tolua_Cocos2d_KTools_saveArcadeStreak00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"KTools",0,&tolua_err) ||
+     !tolua_isnumber(tolua_S,2,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  int streak = ((int)  tolua_tonumber(tolua_S,2,0));
+  {
+   KTools::saveArcadeStreak(streak);
+  }
+ }
+ return 0;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'saveArcadeStreak'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: readArcadeBest of class  KTools */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_KTools_readArcadeBest00
+static int tolua_Cocos2d_KTools_readArcadeBest00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"KTools",0,&tolua_err) ||
+     !tolua_isstring(tolua_S,2,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const char* heroName = ((const char*)  tolua_tostring(tolua_S,2,0));
+  {
+   int tolua_ret = (int)  KTools::readArcadeBest(heroName);
+   tolua_pushnumber(tolua_S,(lua_Number)tolua_ret);
+  }
+ }
+ return 1;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'readArcadeBest'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: saveArcadeBestIfHigher of class  KTools */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_KTools_saveArcadeBestIfHigher00
+static int tolua_Cocos2d_KTools_saveArcadeBestIfHigher00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"KTools",0,&tolua_err) ||
+     !tolua_isstring(tolua_S,2,0,&tolua_err) ||
+     !tolua_isnumber(tolua_S,3,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,4,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const char* heroName = ((const char*)  tolua_tostring(tolua_S,2,0));
+  int stage = ((int)  tolua_tonumber(tolua_S,3,0));
+  {
+   KTools::saveArcadeBestIfHigher(heroName,stage);
+  }
+ }
+ return 0;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'saveArcadeBestIfHigher'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: hasUnlockRecord of class  KTools */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_KTools_hasUnlockRecord00
+static int tolua_Cocos2d_KTools_hasUnlockRecord00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"KTools",0,&tolua_err) ||
+     !tolua_isstring(tolua_S,2,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const char* heroName = ((const char*)  tolua_tostring(tolua_S,2,0));
+  {
+   bool tolua_ret = (bool)  KTools::hasUnlockRecord(heroName);
+   tolua_pushboolean(tolua_S,(bool)tolua_ret);
+  }
+ }
+ return 1;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'hasUnlockRecord'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: isCharacterUnlocked of class  KTools */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_KTools_isCharacterUnlocked00
+static int tolua_Cocos2d_KTools_isCharacterUnlocked00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"KTools",0,&tolua_err) ||
+     !tolua_isstring(tolua_S,2,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const char* heroName = ((const char*)  tolua_tostring(tolua_S,2,0));
+  {
+   bool tolua_ret = (bool)  KTools::isCharacterUnlocked(heroName);
+   tolua_pushboolean(tolua_S,(bool)tolua_ret);
+  }
+ }
+ return 1;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'isCharacterUnlocked'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: unlockCharacter of class  KTools */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_KTools_unlockCharacter00
+static int tolua_Cocos2d_KTools_unlockCharacter00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"KTools",0,&tolua_err) ||
+     !tolua_isstring(tolua_S,2,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const char* heroName = ((const char*)  tolua_tostring(tolua_S,2,0));
+  {
+   KTools::unlockCharacter(heroName);
+  }
+ }
+ return 0;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'unlockCharacter'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: lockCharacter of class  KTools */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_KTools_lockCharacter00
+static int tolua_Cocos2d_KTools_lockCharacter00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"KTools",0,&tolua_err) ||
+     !tolua_isstring(tolua_S,2,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const char* heroName = ((const char*)  tolua_tostring(tolua_S,2,0));
+  {
+   KTools::lockCharacter(heroName);
+  }
+ }
+ return 0;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'lockCharacter'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: isHeroUnlocked of class  KTools */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_KTools_isHeroUnlocked00
+static int tolua_Cocos2d_KTools_isHeroUnlocked00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"KTools",0,&tolua_err) ||
+     !tolua_isstring(tolua_S,2,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const char* heroName = ((const char*)  tolua_tostring(tolua_S,2,0));
+  {
+   bool tolua_ret = (bool)  KTools::isHeroUnlocked(heroName);
+   tolua_pushboolean(tolua_S,(bool)tolua_ret);
+  }
+ }
+ return 1;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'isHeroUnlocked'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: isHeroUnlockEligible of class  KTools */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_KTools_isHeroUnlockEligible00
+static int tolua_Cocos2d_KTools_isHeroUnlockEligible00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"KTools",0,&tolua_err) ||
+     !tolua_isstring(tolua_S,2,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const char* heroName = ((const char*)  tolua_tostring(tolua_S,2,0));
+  {
+   bool tolua_ret = (bool)  KTools::isHeroUnlockEligible(heroName);
+   tolua_pushboolean(tolua_S,(bool)tolua_ret);
+  }
+ }
+ return 1;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'isHeroUnlockEligible'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: tryUnlockHeroViaPurchase of class  KTools */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_KTools_tryUnlockHeroViaPurchase00
+static int tolua_Cocos2d_KTools_tryUnlockHeroViaPurchase00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"KTools",0,&tolua_err) ||
+     !tolua_isstring(tolua_S,2,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const char* heroName = ((const char*)  tolua_tostring(tolua_S,2,0));
+  {
+   bool tolua_ret = (bool)  KTools::tryUnlockHeroViaPurchase(heroName);
+   tolua_pushboolean(tolua_S,(bool)tolua_ret);
+  }
+ }
+ return 1;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'tryUnlockHeroViaPurchase'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: getUnlockConditionLines of class  KTools */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_KTools_getUnlockConditionLines00
+static int tolua_Cocos2d_KTools_getUnlockConditionLines00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"KTools",0,&tolua_err) ||
+     !tolua_isstring(tolua_S,2,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const char* heroName = ((const char*)  tolua_tostring(tolua_S,2,0));
+  {
+   string tolua_ret = (string)  KTools::getUnlockConditionLines(heroName);
+   tolua_pushcppstring(tolua_S,(const char*)tolua_ret);
+  }
+ }
+ return 1;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'getUnlockConditionLines'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: setNodeGrayscale of class  KTools */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_KTools_setNodeGrayscale00
+static int tolua_Cocos2d_KTools_setNodeGrayscale00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"KTools",0,&tolua_err) ||
+     !tolua_isusertype(tolua_S,2,"CCNode",0,&tolua_err) ||
+     !tolua_isboolean(tolua_S,3,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,4,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  CCNode* node = ((CCNode*)  tolua_tousertype(tolua_S,2,0));
+  bool enable = ((bool)  tolua_toboolean(tolua_S,3,0));
+  {
+   KTools::setNodeGrayscale(node,enable);
+  }
+ }
+ return 0;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'setNodeGrayscale'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
 /* method: create of class  CCTips */
 #ifndef TOLUA_DISABLE_tolua_Cocos2d_CCTips_create00
 static int tolua_Cocos2d_CCTips_create00(lua_State* tolua_S)
@@ -72083,6 +72531,21 @@ TOLUA_API int tolua_Cocos2d_open (lua_State* tolua_S)
    tolua_function(tolua_S,"readCoinFromSQL",tolua_Cocos2d_KTools_readCoinFromSQL00);
    tolua_function(tolua_S,"readRecordTimeFromSQL",tolua_Cocos2d_KTools_readRecordTimeFromSQL00);
    tolua_function(tolua_S,"encodeData",tolua_Cocos2d_KTools_encodeData00);
+   tolua_function(tolua_S,"readDuelBestTime",tolua_Cocos2d_KTools_readDuelBestTime00);
+   tolua_function(tolua_S,"saveDuelBestTime",tolua_Cocos2d_KTools_saveDuelBestTime00);
+   tolua_function(tolua_S,"readArcadeStreak",tolua_Cocos2d_KTools_readArcadeStreak00);
+   tolua_function(tolua_S,"saveArcadeStreak",tolua_Cocos2d_KTools_saveArcadeStreak00);
+   tolua_function(tolua_S,"readArcadeBest",tolua_Cocos2d_KTools_readArcadeBest00);
+   tolua_function(tolua_S,"saveArcadeBestIfHigher",tolua_Cocos2d_KTools_saveArcadeBestIfHigher00);
+   tolua_function(tolua_S,"hasUnlockRecord",tolua_Cocos2d_KTools_hasUnlockRecord00);
+   tolua_function(tolua_S,"isCharacterUnlocked",tolua_Cocos2d_KTools_isCharacterUnlocked00);
+   tolua_function(tolua_S,"unlockCharacter",tolua_Cocos2d_KTools_unlockCharacter00);
+   tolua_function(tolua_S,"lockCharacter",tolua_Cocos2d_KTools_lockCharacter00);
+   tolua_function(tolua_S,"isHeroUnlocked",tolua_Cocos2d_KTools_isHeroUnlocked00);
+   tolua_function(tolua_S,"isHeroUnlockEligible",tolua_Cocos2d_KTools_isHeroUnlockEligible00);
+   tolua_function(tolua_S,"tryUnlockHeroViaPurchase",tolua_Cocos2d_KTools_tryUnlockHeroViaPurchase00);
+   tolua_function(tolua_S,"getUnlockConditionLines",tolua_Cocos2d_KTools_getUnlockConditionLines00);
+   tolua_function(tolua_S,"setNodeGrayscale",tolua_Cocos2d_KTools_setNodeGrayscale00);
   tolua_endmodule(tolua_S);
   tolua_cclass(tolua_S,"CCTips","CCTips","CCSprite",NULL);
   tolua_beginmodule(tolua_S,"CCTips");

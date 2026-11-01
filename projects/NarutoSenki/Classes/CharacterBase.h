@@ -105,6 +105,29 @@ public:
 
 	bool				enableDead = true;
 	bool				enableReborn = true;
+
+	// Duels/Arcade bench. A benched hero stays spawned but is hidden, untargetable,
+	// AI-less and frozen until it is swapped in. See enterBench()/leaveBench().
+	bool				_isBenched = false;
+
+	// Duels / Arcade AI state.
+	// Direction the AI patrols in while it has nothing to chase (-1, 0, 1).
+	int8_t				_duelWanderDir = 0;
+	// True while a human is holding the ramen button to charge the pool. Walking
+	// is ignored meanwhile (every other action still works and ends the charge).
+	bool				_isHoldingChakraCharge = false;
+	// AI "hold the ramen button" charge, see tryAIChargeChakra().
+	bool				_isAIChargingChakra = false;
+	float				_aiChakraChargeHeld = 0.0f;
+	uint32_t			_nextChakraChargeAttemptSecond = 0;
+	// How the arena AI decides to charge chakra (see tryAIChargeChakra()).
+	static constexpr uint32_t kAIChargeAttemptSeconds = 10;  // one decision this often
+	static constexpr int kAIChargeChancePercent = 25;        // chance a decision starts a charge
+	static constexpr uint32_t kAIChargeMaxBars = 2;          // only while the pool holds this many bars or fewer
+	static constexpr int kAIChargeSelfInterruptPercent = 10; // chance a charge is abandoned early, on the AI's own
+	// The one charge in progress: whether it will be abandoned early, and when.
+	bool				_aiChargeSelfInterrupts = false;
+	float				_aiChargeInterruptAt = 0.0f;
 	int					changeCharId = -1; // NOTE: Support for random deathmatch mode
 
 	int					rebornLabelTime;
@@ -228,6 +251,70 @@ public:
 	int				_spcAttackRangeX3;
 	int				_spcAttackRangeY3;
 	uint32_t		_spcAttackCD3;
+
+	// Extended skill slots (skillSPC6-15): data only, no HUD button or click
+	// dispatch, same as skillSPC1-5. They carry the combat stats (type, value,
+	// range, cooldown) for character-specific mechanics that need more than the
+	// original five special slots. Hero.hpp fills them from the character's XML.
+	PROP_UInt(_spcAttackValue6, SpcAttackValue6);
+	PROP_REF(string, _spcAttackType6, SpcAttack6Type);
+	int				_spcAttackRangeX6 = 0;
+	int				_spcAttackRangeY6 = 0;
+	uint32_t		_spcAttackCD6 = 0;
+
+	PROP_UInt(_spcAttackValue7, SpcAttackValue7);
+	PROP_REF(string, _spcAttackType7, SpcAttack7Type);
+	int				_spcAttackRangeX7 = 0;
+	int				_spcAttackRangeY7 = 0;
+	uint32_t		_spcAttackCD7 = 0;
+
+	PROP_UInt(_spcAttackValue8, SpcAttackValue8);
+	PROP_REF(string, _spcAttackType8, SpcAttack8Type);
+	int				_spcAttackRangeX8 = 0;
+	int				_spcAttackRangeY8 = 0;
+	uint32_t		_spcAttackCD8 = 0;
+
+	PROP_UInt(_spcAttackValue9, SpcAttackValue9);
+	PROP_REF(string, _spcAttackType9, SpcAttack9Type);
+	int				_spcAttackRangeX9 = 0;
+	int				_spcAttackRangeY9 = 0;
+	uint32_t		_spcAttackCD9 = 0;
+
+	PROP_UInt(_spcAttackValue10, SpcAttackValue10);
+	PROP_REF(string, _spcAttackType10, SpcAttack10Type);
+	int				_spcAttackRangeX10 = 0;
+	int				_spcAttackRangeY10 = 0;
+	uint32_t		_spcAttackCD10 = 0;
+
+	PROP_UInt(_spcAttackValue11, SpcAttackValue11);
+	PROP_REF(string, _spcAttackType11, SpcAttack11Type);
+	int				_spcAttackRangeX11 = 0;
+	int				_spcAttackRangeY11 = 0;
+	uint32_t		_spcAttackCD11 = 0;
+
+	PROP_UInt(_spcAttackValue12, SpcAttackValue12);
+	PROP_REF(string, _spcAttackType12, SpcAttack12Type);
+	int				_spcAttackRangeX12 = 0;
+	int				_spcAttackRangeY12 = 0;
+	uint32_t		_spcAttackCD12 = 0;
+
+	PROP_UInt(_spcAttackValue13, SpcAttackValue13);
+	PROP_REF(string, _spcAttackType13, SpcAttack13Type);
+	int				_spcAttackRangeX13 = 0;
+	int				_spcAttackRangeY13 = 0;
+	uint32_t		_spcAttackCD13 = 0;
+
+	PROP_UInt(_spcAttackValue14, SpcAttackValue14);
+	PROP_REF(string, _spcAttackType14, SpcAttack14Type);
+	int				_spcAttackRangeX14 = 0;
+	int				_spcAttackRangeY14 = 0;
+	uint32_t		_spcAttackCD14 = 0;
+
+	PROP_UInt(_spcAttackValue15, SpcAttackValue15);
+	PROP_REF(string, _spcAttackType15, SpcAttack15Type);
+	int				_spcAttackRangeX15 = 0;
+	int				_spcAttackRangeY15 = 0;
+	uint32_t		_spcAttackCD15 = 0;
 
 	PROP_UInt(_tempAttackValue1, TempAttackValue1);
 
@@ -363,9 +450,47 @@ public:
 	CCArray* skillSPC3Array;
 	CCArray* skillSPC4Array;
 	CCArray* skillSPC5Array;
+	CCArray* skillSPC6Array = nullptr; // null until the XML has that slot
+	CCArray* skillSPC7Array = nullptr; // null until the XML has that slot
+	CCArray* skillSPC8Array = nullptr; // null until the XML has that slot
+	CCArray* skillSPC9Array = nullptr; // null until the XML has that slot
+	CCArray* skillSPC10Array = nullptr; // null until the XML has that slot
+	CCArray* skillSPC11Array = nullptr; // null until the XML has that slot
+	CCArray* skillSPC12Array = nullptr; // null until the XML has that slot
+	CCArray* skillSPC13Array = nullptr; // null until the XML has that slot
+	CCArray* skillSPC14Array = nullptr; // null until the XML has that slot
+	CCArray* skillSPC15Array = nullptr; // null until the XML has that slot
 
 
 	virtual void		dealloc();
+
+	// Put the hero on / take it off the Duels bench. Neither one despawns the
+	// hero or anything it summoned; only a dead hero is ever removed.
+	void				enterBench();
+
+	// Start of a bench swap for a hero that is in the middle of an action: it is
+	// taken out of play at once (no AI, no control, cannot be hit) but stays
+	// visible, so the action can play out. enterBench() finishes the job.
+	void				beginDeparture();
+
+	// Kills the units that need this hero to control them (Akamaru, Parents,
+	// Karasu). Their own death logic then ends the owner's linked action. Every
+	// other summon, puppet, Mon and projectile is deliberately left alone: they
+	// keep running while their owner is benched.
+	void				killOwnedSummons();
+
+	// Puts the hero into a real standing pose right now. idle() alone is not
+	// enough while movement keys are held: it skips the idle animation (expecting
+	// walk() to restart at once), which leaves a frozen walk frame when walking
+	// has been switched off. Also clears any leftover walking velocity.
+	void				forceIdleStance();
+
+	// The AI's stand-in for holding the ramen button: now and then, while idle
+	// and low on chakra, it charges the shared pool the same way a player does.
+	void				tryAIChargeChakra();
+	void				updateAIChargeChakra(float dt);
+	void				stopAIChargeChakra();
+	void				leaveBench(const Vec2 &pos, bool flipped);
 	virtual void		reborn(float dt);
 
 
@@ -491,6 +616,11 @@ public:
 			getGameLayer()->getHudLayer()->skill5Button->setLock();
 		}
 	}
+	// The skill 4/5 buttons on the HUD are one shared pair, not one pair per hero.
+	// A hero that keeps them locked for its own reasons (a puppet that is still
+	// out, say) overrides this to lock them again from its own state whenever it
+	// takes over the HUD, e.g. when it is swapped in. Nothing for most heroes.
+	virtual void reapplyOugisLocks() {}
 	void unlockOugisButtons() {
 		if (isPlayer()) {
 			getGameLayer()->getHudLayer()->skill4Button->unLock();

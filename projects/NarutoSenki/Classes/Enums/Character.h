@@ -31,6 +31,8 @@
 
 // Tile maps (Made with Tiled)
 #define GetMapPath(mapId) format("Maps/{}.tmx", mapId).c_str()
+// Duels / Arcade arenas live in their own numbered folder
+#define GetDuelMapPath(mapId) format("Maps/Duels/{}.tmx", mapId).c_str()
 #define GetMapBgPath(mapId) format("Maps/map_bg{}.png", mapId).c_str()
 
 enum class Role : uint8_t
@@ -72,6 +74,8 @@ enum ABType : uint8_t
 	SKILL3,
 	OUGIS1,
 	OUGIS2,
+	AllySwitch1, // Duels / Arcade: swap to the hero on bench slot 1
+	AllySwitch2, // ... and slot 2
 };
 
 // declare GearButton

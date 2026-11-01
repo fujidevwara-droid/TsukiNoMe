@@ -92,6 +92,17 @@ void LoadLayer::preloadIMG()
 		i++;
 	}
 
+	// Heroes that are not on the field at the start (the Duels bench) still
+	// need their art loaded, or the first swap would stall on disk.
+	for (const auto &name : getGameModeHandler()->getExtraPreloadChars())
+	{
+		if (std::find(loadVector.begin(), loadVector.end(), name) == loadVector.end())
+		{
+			perloadCharIMG(name.c_str());
+			loadVector.push_back(name);
+		}
+	}
+
 	if (_isHardCoreMode)
 	{
 		addSprites(kGuardian_Han);
@@ -349,7 +360,7 @@ void LoadLayer::onLoadFinish(float dt)
 	_gameLayer->initHeros();
 
 	_bgLayer = BGLayer::create();
-	_bgLayer->initBg(_gameLayer->mapId);
+	_bgLayer->initBg(_gameLayer->mapId, isDuelMode());
 
 	_hudLayer->initHeroInterface();
 	_gameLayer->invokeAllCallbacks();

@@ -168,6 +168,24 @@ class Kankuro : public Hero
 		_skillChangeBuffValue = 0;
 	}
 
+	// Skill 4 / 5 stay locked on the HUD while Sanshouuo / Saso are out. The HUD
+	// buttons are shared by every hero, so when Kankuro takes over the HUD again
+	// (swapped back in) his locks are rebuilt from which puppets are actually
+	// alive, instead of being carried over from whoever played before him.
+	void reapplyOugisLocks() override
+	{
+		for (auto puppet : _monsterArray)
+		{
+			if (puppet->getState() == State::DEAD)
+				continue;
+
+			if (puppet->getName() == KugutsuEnum::Sanshouuo)
+				lockSkill4Button();
+			else if (puppet->getName() == KugutsuEnum::Saso)
+				lockSkill5Button();
+		}
+	}
+
 	void dealloc() override
 	{
 		Hero::dealloc();

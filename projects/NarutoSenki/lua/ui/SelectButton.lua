@@ -106,17 +106,24 @@ function SelectButton:click()
                 audio.playSound(fmt('Audio/Intro/%s.ogg', self._charName))
             end
             audio.playSound(ns.menu.SELECT_SOUND)
+
+            self._clickTime = self._clickTime + 1
+            self._selectLayer:setSelected(self)
         elseif self._clickTime == 1 then
+            -- A locked hero can be previewed (above) but never confirmed:
+            -- show what unlocks it instead, and stay on the preview step.
+            if not self:isUnlockedCharacter() then return end
+
             log('Selected character ' .. self._charName)
 
             audio.playSound('Audio/Menu/confirm2.ogg')
             self._isAviable = false
             self:spriteToGrey()
             self:getParent():reorderChild(self, 500)
-        end
 
-        self._clickTime = self._clickTime + 1
-        self._selectLayer:setSelected(self)
+            self._clickTime = self._clickTime + 1
+            self._selectLayer:setSelected(self)
+        end
     end
 end
 
@@ -129,7 +136,81 @@ function SelectButton:spriteToGrey()
     self:addChild(black)
 end
 
+function SelectButton:isUnlockedCharacter()
+    if tools.isHeroUnlocked(self._charName) then return true end
+
+    self._selectLayer:showLockedCharPopup(self._charName)
+    log('Character %s is locked', self._charName)
+    return false
+end
+
+-- Heroes that exist in the roster data but are not playable yet. They are
+-- shown in greyscale (there is nothing to unlock, so no lock overlay) and give
+-- the plain 'LimitedChar' tip instead of the unlock popup.
+local comingSoonList = {}
+
+function ns.addComingSoonCharacter(name)
+    if name ~= nil then comingSoonList[string.lower(name)] = true end
+end
+
+function SelectButton:isComingSoonCharacter()
+    return comingSoonList[string.lower(self._charName or '')] == true
+end
+
+-- Real greyscale: a shader on this one portrait. The portraits share an atlas
+-- with the whole roster, but the shader only touches this node's own quad (see
+-- KTools::setNodeGrayscale), so the neighbours stay in colour.
+function SelectButton:setPortraitGrayscale(enable)
+    tools.setNodeGrayscale(self:getVirtualRenderer(), enable)
+end
+
+-- A "locked" overlay the size of the portrait frame. FengSuo.png is the
+-- dedicated art; where an atlas does not ship it, the dark frame used for
+-- already-picked heroes stands in.
+-- ignoreContentAdaptWithSize(true) matters: without it an ImageView stretches
+-- to its widget size (zero on a fresh one) instead of the texture's own size.
+function SelectButton:setPortraitLockOverlay(enable)
+    if enable then
+        if self._lockOverlay then return end
+        local frameName = 'FengSuo.png'
+        if CCSpriteFrameCache:sharedSpriteFrameCache():spriteFrameByName(frameName) == nil then
+            frameName = 'Black_select.png'
+        end
+        local overlay = ImageView:create()
+        overlay:loadTexture(frameName, UI_TEX_TYPE_PLIST)
+        overlay:ignoreContentAdaptWithSize(true)
+        overlay:setAnchorPoint(CCPoint(0.5, 0.5))
+        overlay:setPosition(CCPoint(17, 32))
+        self:addChild(overlay)
+        self._lockOverlay = overlay
+    elseif self._lockOverlay then
+        self._lockOverlay:removeFromParent()
+        self._lockOverlay = nil
+    end
+end
+
+-- Picks the right look for this portrait when the roster is built.
+function SelectButton:refreshLockedVisual()
+    if self:isComingSoonCharacter() then
+        self:setPortraitGrayscale(true)
+        self:setPortraitLockOverlay(false)
+    elseif not tools.isHeroUnlocked(self._charName) then
+        self:setPortraitGrayscale(false)
+        self:setPortraitLockOverlay(true)
+    else
+        self:setPortraitGrayscale(false)
+        self:setPortraitLockOverlay(false)
+    end
+end
+
 function SelectButton:isSupportedCharacter()
+    if self:isComingSoonCharacter() then
+        local tip = CCTips:create('LimitedChar')
+        self._selectLayer:addChild(tip, 5000)
+        log('Character %s is coming soon', self._charName)
+        return false
+    end
+
     for _, v in ipairs(unsupportedList) do
         if v == string.lower(self._charName) then
             local tip = CCTips:create('LimitedChar')

@@ -10,6 +10,8 @@ std::array<std::unique_ptr<IGameModeHandler>, GameMode::__Internal_Max_Length> s
 	std::make_unique<ModeClone>(false),
 	std::make_unique<ModeDeathmatch>(),
 	std::make_unique<ModeRandomDeathmatch>(),
+	std::make_unique<ModeDuels>(),
+	std::make_unique<ModeArcade>(),
 };
 int Cheats = 0;
 bool enableCustomSelect = false;
@@ -215,12 +217,12 @@ bool StartMenu::init()
 
 	// Vec2 origin = Director::sharedDirector()->getVisibleOrigin();
 
-	// Sprite* bgSprite = Sprite::create("red_bg.png");
-	////pSprite->setPosition(Vec2(winSize.width/2 + origin.x, winSize.height/2 + origin.y));
-	// FULL_SCREEN_SPRITE(bgSprite);
-	// bgSprite->setAnchorPoint(Vec2(0,0));
-	// bgSprite->setPosition(Vec2(0,0));
-	// addChild(bgSprite, -5);
+	// Main menu backdrop (replaces the plain black screen).
+	Sprite *bgSprite = Sprite::create("background.png");
+	FULL_SCREEN_SPRITE(bgSprite);
+	bgSprite->setAnchorPoint(Vec2(0, 0));
+	bgSprite->setPosition(Vec2(0, 0));
+	addChild(bgSprite, -5);
 
 	// produce groud
 	Sprite *gold_left = Sprite::createWithSpriteFrameName("gold_left.png");

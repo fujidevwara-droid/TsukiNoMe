@@ -18,6 +18,10 @@ local gameMode = {
 	Deathmatch = 6,
 	-- 3 VS 3
 	RandomDeathmatch = 7,
+	-- 1 VS 1 arena, 3 characters per side
+	Duels = 8,
+	-- Endless Duels stages with boss rounds
+	Arcade = 9,
 }
 
 return gameMode

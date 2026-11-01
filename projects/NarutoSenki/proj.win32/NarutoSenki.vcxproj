@@ -200,6 +200,8 @@ xcopy /Y /Q "$(SolutionDir)$(Configuration).win32\*.exe" "$(SolutionDir)projects
     <ClInclude Include="..\Classes\GameMode\Impl\3v3.hpp" />
     <ClInclude Include="..\Classes\GameMode\Impl\4v4.hpp" />
     <ClInclude Include="..\Classes\GameMode\Impl\Boss.hpp" />
+    <ClInclude Include="..\Classes\GameMode\Impl\Duels.hpp" />
+    <ClInclude Include="..\Classes\GameMode\Impl\Arcade.hpp" />
     <ClInclude Include="..\Classes\GameMode\Impl\Clone.hpp" />
     <ClInclude Include="..\Classes\GameMode\Impl\Deathmatch.hpp" />
     <ClInclude Include="..\Classes\GameMode\Impl\HardCore.hpp" />
@@ -222,6 +224,8 @@ xcopy /Y /Q "$(SolutionDir)$(Configuration).win32\*.exe" "$(SolutionDir)projects
     <ClInclude Include="..\Classes\SelectLayer.h" />
     <ClInclude Include="..\Classes\StartMenu.h" />
     <ClInclude Include="..\Classes\Systems\CommandSystem.hpp" />
+    <ClInclude Include="..\Classes\Systems\DuelSystem.hpp" />
+    <ClInclude Include="..\Classes\Systems\DuelChakra.hpp" />
     <ClInclude Include="..\Classes\Systems\Initializer.hpp" />
     <ClInclude Include="..\Classes\UI\GameModeLayer.h" />
     <ClInclude Include="..\Classes\UI\ModeMenuButton.hpp" />

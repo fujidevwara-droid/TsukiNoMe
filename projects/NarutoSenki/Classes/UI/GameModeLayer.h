@@ -15,11 +15,24 @@ public:
 	bool pushMode(const GameModeData &data);
 	void removeMode(const GameModeData &data);
 	void selectMode(GameMode mode);
+	// Goes on to the hero select screen for `mode` and initialises its handler.
+	void enterMode(GameMode mode);
 
 	CREATE_FUNC(GameModeLayer);
 
 private:
 	inline bool setSelect(GameMode mode);
+
+	// Arcade: a run in progress offers to resume with the same team or start
+	// over. Reuses the confirm popup art, so nothing new is needed.
+	void showArcadeResumePrompt(int streak);
+	void onArcadeResumeYes(Ref *sender);
+	void onArcadeResumeNo(Ref *sender);
+
+	Layer *arcadePromptLayer = nullptr;
+	string _savedLeader;
+	string _savedAlly1;
+	string _savedAlly2;
 
 	CCLabelTTF *menuLabel = nullptr;
 

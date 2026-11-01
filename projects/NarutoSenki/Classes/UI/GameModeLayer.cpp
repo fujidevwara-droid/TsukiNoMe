@@ -2,6 +2,7 @@
 #include "UI/GameModeLayer.h"
 #include "UI/ModeMenuButton.hpp"
 #include "Constants/UiFlowKeys.hpp"
+#include "MyUtils/KTools.h"
 
 extern const GameData kDefaultGameData;
 
@@ -43,45 +44,56 @@ bool GameModeLayer::init()
 	// const int width = 100;
 	const int offset = (winSize.width - 460) / 2 + 100 / 2;
 	const float posY = (winSize.height / 2) + 30;
-	for (int i = 0; i < 3; i++)
+	// The menu has eight fixed slots, each with its own artwork
+	// (GameMode/<art + 1>.png). Duels and Arcade are real modes of their own but
+	// temporarily take the slots that Boss and Deathmatch used to occupy.
+	struct MenuSlot
 	{
-		auto mode_btn = ModeMenuButton::create(format("GameMode/{}.png", i + 1));
-		mode_btn->mode = (GameMode)i;
-		mode_btn->setDelegate(this);
-		mode_btn->setPositionX(offset);
-		mode_btn->setPositionY((posY + 55 + 7.5f) - i * (55 + 7.5f));
-		menuButtons[i] = mode_btn;
-		addChild(mode_btn);
-	}
-	for (int i = 3; i < 6; i++)
+		GameMode mode;
+		int art;
+	};
+	static const MenuSlot kSlots[] = {
+		{GameMode::OneVsOne, 0},
+		{GameMode::Classic, 1},
+		{GameMode::FourVsFour, 2},
+		{GameMode::HardCore_4Vs4, 3},
+		{GameMode::Duels, 4},
+		{GameMode::Clone, 5},
+		{GameMode::Arcade, 6},
+		{GameMode::RandomDeathmatch, 7},
+	};
+
+	for (const auto &slot : kSlots)
 	{
-		auto mode_btn = ModeMenuButton::create(format("GameMode/{}.png", i + 1));
-		mode_btn->mode = (GameMode)i;
+		const int art = slot.art;
+		auto mode_btn = ModeMenuButton::create(format("GameMode/{}.png", art + 1));
+		mode_btn->mode = slot.mode;
 		mode_btn->setDelegate(this);
-		mode_btn->setPositionX(offset + 10 + (i - 2) * (80 + 5));
-		mode_btn->setPositionY(posY);
-		menuButtons[i] = mode_btn;
-		addChild(mode_btn);
-		// init animation
-		// auto delay = DelayTime::create(i * 0.3f);
-		// auto move = MoveTo::create(0.5f, Vec2((i - 1) * (width + padding) + offset, posY + 30));
-		// auto action = Sequence::createWithTwoActions(delay, move);
-		// mode_btn->runAction(action);
-	}
-	for (size_t i = 6; i < GameMode::__Internal_Max_Length; i++)
-	{
-		auto mode_btn = ModeMenuButton::create(format("GameMode/{}.png", i + 1));
-		mode_btn->mode = (GameMode)i;
-		mode_btn->setDelegate(this);
-		mode_btn->setPositionX(offset + 20 + (80 + 5) * 4);
-		mode_btn->setPositionY((posY + 47) - (i - 6) * (86 + 8.0f));
-		menuButtons[i] = mode_btn;
+
+		if (art < 3) // left column
+		{
+			mode_btn->setPositionX(offset);
+			mode_btn->setPositionY((posY + 55 + 7.5f) - art * (55 + 7.5f));
+		}
+		else if (art < 6) // middle row
+		{
+			mode_btn->setPositionX(offset + 10 + (art - 2) * (80 + 5));
+			mode_btn->setPositionY(posY);
+		}
+		else // right column
+		{
+			mode_btn->setPositionX(offset + 20 + (80 + 5) * 4);
+			mode_btn->setPositionY((posY + 47) - (art - 6) * (86 + 8.0f));
+		}
+
+		menuButtons[slot.mode] = mode_btn;
 		addChild(mode_btn);
 	}
 
 	for (size_t i = 0; i < menuButtons.size(); i++)
 	{
-		if (modes[i].isLocked)
+		// Boss and Deathmatch have no button while Duels/Arcade stand in for them.
+		if (menuButtons[i] && modes[i].isLocked)
 		{
 			menuButtons.at(i)->useMask2 = modes.at(i).useMask2;
 			menuButtons.at(i)->lock();
@@ -124,6 +136,8 @@ void GameModeLayer::initModeData()
 		modes[GameMode::FourVsFour] = {"4 VS 4", ""};
 		modes[GameMode::HardCore_4Vs4] = {"硬核模式 (4 VS 4)", "禁用装备"};
 		modes[GameMode::Boss] = {"Boss模式 (3 VS 1)", ""};
+		modes[GameMode::Duels] = {"决斗模式 (1 VS 1)", ""};
+		modes[GameMode::Arcade] = {"街机模式 (无尽 1 VS 1)", ""};
 		modes[GameMode::Clone] = {"克隆模式 (3 VS 3)", ""};
 		modes[GameMode::Deathmatch] = {"死亡竞赛 (3 VS 3)", ""};
 		modes[GameMode::RandomDeathmatch] = {"随机死亡竞赛 (3 VS 3)", ""};
@@ -135,15 +149,15 @@ void GameModeLayer::initModeData()
 		modes[GameMode::FourVsFour] = {"4 VS 4", ""};
 		modes[GameMode::HardCore_4Vs4] = {"HardCore (4 VS 4)", "Disabled gear"};
 		modes[GameMode::Boss] = {"Boss (3 VS 3)", ""};
+		modes[GameMode::Duels] = {"Duels (1 VS 1 Arena)", ""};
+		modes[GameMode::Arcade] = {"Arcade (Endless 1 VS 1)", ""};
 		modes[GameMode::Clone] = {"Clone (3 VS 3)", ""};
 		modes[GameMode::Deathmatch] = {"Deathmatch (3 VS 3)", ""};
 		modes[GameMode::RandomDeathmatch] = {"Random Deathmatch (3 VS 3)", ""};
 	}
 
-	// init in developtment game modes
-	modes[GameMode::Boss].isLocked = true;
-	modes[GameMode::Deathmatch].isLocked = true;
-	modes[GameMode::Deathmatch].useMask2 = true;
+	// Boss and Deathmatch are still in development and have no menu slot
+	// right now (Duels and Arcade are using theirs), so nothing is locked here.
 
 	// init mode handlers
 	for (size_t i = 0; i < GameMode::__Internal_Max_Length; i++)
@@ -181,29 +195,158 @@ void GameModeLayer::selectMode(GameMode mode)
 			modes.at(i).isLocked = true;
 		CCLOG("Selected %s mode", data.title.c_str());
 
-		s_GameMode = mode;
-		bool enableCustomSelect = false;
-		if (Cheats < kMaxCheats && (mode == GameMode::FourVsFour || mode == GameMode::HardCore_4Vs4))
+		// A saved Arcade run asks whether to carry on before anything else.
+		if (mode == GameMode::Arcade)
 		{
-			enableCustomSelect = false;
-		}
-		else if (mode != GameMode::RandomDeathmatch && mode != GameMode::Clone)
-		{
-			enableCustomSelect = Cheats >= kMaxCheats;
+			const int streak = KTools::readArcadeStreak();
+			KTools::ArcadeTeam team;
+			if (streak > 0 && KTools::readArcadeTeam(team))
+			{
+				_savedLeader = team.leader;
+				_savedAlly1 = team.ally1;
+				_savedAlly2 = team.ally2;
+				showArcadeResumePrompt(streak);
+				return;
+			}
 		}
 
-		// call lua global function StartMenu.enterSelectLayer
-		auto pStack = get_luastack;
-		auto state = pStack->getLuaState();
-		lua_getglobal(state, UiFlowKeys::kEnterSelectLayer);
-		pStack->pushInt(mode);
-		pStack->pushBoolean(enableCustomSelect);
-		pStack->executeFunction(2);
-
-		auto handler = getGameModeHandler();
-		handler->setOldCheats(Cheats);
-		handler->init();
+		enterMode(mode);
 	}
+}
+
+void GameModeLayer::enterMode(GameMode mode)
+{
+	s_GameMode = mode;
+	bool enableCustomSelect = false;
+	if (Cheats < kMaxCheats && (mode == GameMode::FourVsFour || mode == GameMode::HardCore_4Vs4))
+	{
+		enableCustomSelect = false;
+	}
+	else if (mode != GameMode::RandomDeathmatch && mode != GameMode::Clone)
+	{
+		enableCustomSelect = Cheats >= kMaxCheats;
+	}
+
+	// call lua global function StartMenu.enterSelectLayer
+	auto pStack = get_luastack;
+	auto state = pStack->getLuaState();
+	lua_getglobal(state, UiFlowKeys::kEnterSelectLayer);
+	pStack->pushInt(mode);
+	pStack->pushBoolean(enableCustomSelect);
+	pStack->executeFunction(2);
+
+	auto handler = getGameModeHandler();
+	handler->setOldCheats(Cheats);
+	handler->init();
+}
+
+void GameModeLayer::showArcadeResumePrompt(int streak)
+{
+	if (arcadePromptLayer)
+		return;
+
+	SimpleAudioEngine::sharedEngine()->playEffect("Audio/Menu/select.ogg");
+	arcadePromptLayer = Layer::create();
+
+	auto bg = Sprite::createWithSpriteFrameName("confirm_bg.png");
+	bg->setPosition(Vec2(winSize.width / 2, winSize.height / 2));
+
+	// Dedicated title/text art is optional; BMFont labels stand in without it.
+	auto frames = SpriteFrameCache::sharedSpriteFrameCache();
+	Node *title = nullptr;
+	if (auto frame = frames->spriteFrameByName("arcade_title.png"))
+	{
+		title = Sprite::createWithSpriteFrame(frame);
+	}
+	else
+	{
+		auto label = CCLabelBMFont::create("ARCADE", Fonts::Default);
+		label->setScale(0.5f);
+		title = label;
+	}
+	title->setPosition(Vec2(winSize.width / 2, winSize.height / 2 + 38));
+
+	Node *text = nullptr;
+	if (auto frame = frames->spriteFrameByName("arcade_text.png"))
+	{
+		text = Sprite::createWithSpriteFrame(frame);
+	}
+	else
+	{
+		auto label = CCLabelBMFont::create(format("Continue your run? (Stage {})", streak + 1).c_str(), Fonts::Default,
+										   bg->getContentSize().width - 20, kCCTextAlignmentCenter);
+		label->setScale(0.4f);
+		text = label;
+	}
+	text->setPosition(Vec2(winSize.width / 2, winSize.height / 2 + 8));
+
+	MenuItem *yes_btn = MenuItemSprite::create(Sprite::createWithSpriteFrameName("yes_btn1.png"), Sprite::createWithSpriteFrameName("yes_btn2.png"), this, menu_selector(GameModeLayer::onArcadeResumeYes));
+	MenuItem *no_btn = MenuItemSprite::create(Sprite::createWithSpriteFrameName("no_btn1.png"), Sprite::createWithSpriteFrameName("no_btn2.png"), this, menu_selector(GameModeLayer::onArcadeResumeNo));
+
+	Menu *menu = Menu::create(yes_btn, no_btn, nullptr);
+	menu->alignItemsHorizontallyWithPadding(24);
+	menu->setPosition(Vec2(winSize.width / 2, winSize.height / 2 - 30));
+
+	arcadePromptLayer->addChild(bg, 1);
+	arcadePromptLayer->addChild(menu, 2);
+	arcadePromptLayer->addChild(title, 2);
+	arcadePromptLayer->addChild(text, 2);
+	addChild(arcadePromptLayer, 500);
+}
+
+void GameModeLayer::onArcadeResumeYes(Ref *sender)
+{
+	SimpleAudioEngine::sharedEngine()->playEffect("Audio/Menu/confirm.ogg");
+	arcadePromptLayer->removeFromParent();
+	arcadePromptLayer = nullptr;
+
+	s_GameMode = GameMode::Arcade;
+	auto handler = getGameModeHandler();
+	handler->setOldCheats(Cheats);
+	handler->init();
+
+	// The select screen is skipped, but it is also what loads these atlases;
+	// load the same set so nothing later reaches for a frame that was never
+	// brought in.
+	addSprites("Record.plist");
+	addSprites("Record2.plist");
+	addSprites("Select.plist");
+	addSprites("UI.plist");
+	addSprites("Report.plist");
+	addSprites("Ougis.plist");
+	addSprites("Ougis2.plist");
+	addSprites("Map.plist");
+	addSprites("Gears.plist");
+
+	auto tempSelect = SelectLayer::create();
+	tempSelect->setSelectHero(_savedLeader.c_str());
+	if (!_savedAlly1.empty())
+		tempSelect->setCom1Select(_savedAlly1.c_str());
+	if (!_savedAlly2.empty())
+		tempSelect->setCom2Select(_savedAlly2.c_str());
+
+	// onInitHeros() copies what it needs straight away, so the short-lived
+	// layer and the strings above only have to live through this call.
+	handler->selectLayer = tempSelect;
+	handler->onInitHeros();
+
+	auto loadScene = Scene::create();
+	auto loadLayer = LoadLayer::create();
+	loadLayer->preloadAudio();
+	loadScene->addChild(loadLayer);
+
+	Director::sharedDirector()->replaceScene(TransitionFade::create(1.0f, loadScene));
+}
+
+void GameModeLayer::onArcadeResumeNo(Ref *sender)
+{
+	SimpleAudioEngine::sharedEngine()->playEffect("Audio/Menu/cancel.ogg");
+	arcadePromptLayer->removeFromParent();
+	arcadePromptLayer = nullptr;
+
+	// A new run: the streak starts from zero, then on to the normal select.
+	KTools::saveArcadeStreak(0);
+	enterMode(GameMode::Arcade);
 }
 
 bool GameModeLayer::setSelect(GameMode mode)

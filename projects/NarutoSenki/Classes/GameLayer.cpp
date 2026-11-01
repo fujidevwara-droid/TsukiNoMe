@@ -10,6 +10,7 @@
 #include "Systems/BattleRuntimeSystem.hpp"
 #include "Systems/SpawnSystem.hpp"
 #include "Systems/SessionState.hpp"
+#include "Systems/DuelSystem.hpp"
 
 GameLayer* _gLayer = nullptr;
 bool _isFullScreen = false;
@@ -51,9 +52,16 @@ void BattleRuntimeSystem::updateGameTime(GameLayer* layer) const
 		layer->_minute += 1;
 		layer->_second = 0;
 	}
-	auto tempTime = format("{:02d}:{:02d}", layer->_minute, layer->_second);
-	layer->getHudLayer()->gameClock->setString(tempTime.c_str());
+	// Modes such as Arcade show their own text on the clock label.
+	if (!getGameModeHandler()->usesCustomClock())
+	{
+		auto tempTime = format("{:02d}:{:02d}", layer->_minute, layer->_second);
+		layer->getHudLayer()->gameClock->setString(tempTime.c_str());
+	}
 	layer->setTotalTime(layer->getTotalTime() + 1);
+
+	if (isDuelMode())
+		layer->_duel->tickEnemySwap(1.0f);
 }
 
 void BattleRuntimeSystem::updateViewPoint(GameLayer* layer) const
@@ -69,10 +77,20 @@ void BattleRuntimeSystem::updateViewPoint(GameLayer* layer) const
 	else
 		playerPoint = layer->currentPlayer->getPosition();
 
+	const Size mapPixels(layer->currentMap->getMapSize().width * layer->currentMap->getTileSize().width,
+						 layer->currentMap->getMapSize().height * layer->currentMap->getTileSize().height);
+
+	if (isDuelMode())
+	{
+		// The arena fits on one screen: the camera stays put, centred on the map.
+		layer->setPosition(Vec2((winSize.width - mapPixels.width) / 2.0f, (winSize.height - mapPixels.height) / 2.0f));
+		return;
+	}
+
 	int x = MAX(playerPoint.x, winSize.width / 2);
 	int y = MAX(playerPoint.y, winSize.width / 2);
-	x = MIN(x, (layer->currentMap->getMapSize().width * layer->currentMap->getTileSize().width) - winSize.width / 2);
-	y = MIN(y, (layer->currentMap->getMapSize().height * layer->currentMap->getTileSize().height) - winSize.height / 2);
+	x = MIN(x, mapPixels.width - winSize.width / 2);
+	y = MIN(y, mapPixels.height - winSize.height / 2);
 	layer->setPosition(Vec2(winSize.width / 2, y) - Vec2(x, y));
 }
 
@@ -91,6 +109,7 @@ GameLayer::GameLayer()
 	_battleRuntimeSystem = std::make_unique<BattleRuntimeSystem>();
 	_spawnSystem = std::make_unique<SpawnSystem>();
 	_sessionState = std::make_unique<SessionState>();
+	_duel = std::make_unique<DuelSystem>(this);
 
 	mapId = 0;
 
@@ -176,6 +195,7 @@ void GameLayer::onEnter()
 
 	if (_isSurrender)
 	{
+		getGameModeHandler()->onSurrender();
 		onGameOver(false);
 	}
 }
@@ -203,14 +223,53 @@ bool GameLayer::isHUDInit()
 void GameLayer::initTileMap()
 {
 	setRand();
-	int mapCount = getMapCount();
+	const bool duel = isDuelMode();
+
+	// A mode may swap in its own arena (an Arcade boss round). It is only used
+	// if the file is there; otherwise the stage plays on a normal map.
+	auto fileUtils = FileUtils::sharedFileUtils();
+	int overrideMap = 0;
+	vector<int> reserved;
+	if (duel)
+	{
+		auto handler = getGameModeHandler();
+		overrideMap = handler->getArenaOverrides().map;
+		reserved = handler->getReservedArenaMaps();
+	}
+	const bool customMap = overrideMap > 0 && fileUtils->isFileExist(GetDuelMapPath(overrideMap));
+
+	int mapCount = duel ? getDuelMapCount() : getMapCount();
 	if (mapCount == 0)
 	{
-		CCMessageBox("Not found any map", "[Error] Not found any map");
+		const char *msg = duel ? "Not found any duel map" : "Not found any map";
+		CCMessageBox(msg, format("[Error] {}", msg).c_str());
 		return;
 	}
-	mapId = random(mapCount) + 1;
-	currentMap = TMXTiledMap::create(GetMapPath(mapId));
+
+	if (customMap)
+	{
+		// The map number also picks the background and the battle music rotation.
+		mapId = overrideMap;
+	}
+	else
+	{
+		// Random arena, leaving out the ones reserved for specific fights. If
+		// that would leave nothing, any map is better than none.
+		vector<int> candidates;
+		for (int n = 1; n <= mapCount; ++n)
+		{
+			if (std::find(reserved.begin(), reserved.end(), n) == reserved.end())
+				candidates.push_back(n);
+		}
+		if (candidates.empty())
+		{
+			for (int n = 1; n <= mapCount; ++n)
+				candidates.push_back(n);
+		}
+		mapId = candidates[random(static_cast<int>(candidates.size()))];
+	}
+	currentMap = TMXTiledMap::create(duel ? GetDuelMapPath(mapId) : GetMapPath(mapId));
+
 	addChild(currentMap, kMapOrder);
 }
 
@@ -329,9 +388,15 @@ void GameLayer::initHeros()
 		i++;
 	}
 
+	// Duels / Arcade: spawn the rest of both rosters now (hidden on the bench)
+	// so a later switch never has to spawn anything.
+	if (isDuelMode())
+		_duel->spawnRoster();
+
 	// Tower HP bar color depends on currentPlayer group, so towers must be
-	// initialized after at least one hero/player is created.
-	initTower();
+	// initialized after at least one hero/player is created. Arenas have none.
+	if (!isDuelMode())
+		initTower();
 
 	schedule(schedule_selector(GameLayer::updateViewPoint), 0.00f);
 	scheduleOnce(schedule_selector(GameLayer::playGameOpeningAnimation), 0.5f);
@@ -362,7 +427,9 @@ Hero* GameLayer::addHero(const string& name, Role role, Group group, Vec2 spawnP
 	hero->setShadows();
 	hero->idle();
 	hero->setCharId(charId);
-	hero->schedule(schedule_selector(CharacterBase::setRestore2), 1.0f);
+	// Duels have no passive regeneration; recovery is part of the mode.
+	if (!isDuelMode())
+		hero->schedule(schedule_selector(CharacterBase::setRestore2), 1.0f);
 
 	addChild(hero, -hero->getPositionY());
 	_CharacterArray.push_back(hero);
@@ -543,6 +610,11 @@ void GameLayer::setHPLose(float percent)
 	_hudLayer->setHPLose(percent);
 }
 
+void GameLayer::setEnemyHPLose(float percent)
+{
+	_hudLayer->setEnemyHPLose(percent);
+}
+
 void GameLayer::setCKRLose(bool isCRK2)
 {
 	_hudLayer->setCKRLose(isCRK2);
@@ -703,6 +775,16 @@ void GameLayer::attackButtonClick(ABType type)
 		_isAttackButtonRelease = false;
 	}
 
+	if (type == AllySwitch1 || type == AllySwitch2)
+	{
+		_duel->swapPlayer(type == AllySwitch1 ? 0 : 1);
+		return;
+	}
+
+	// The arena has no healing items; the button is hidden, this covers keys.
+	if (type == Item1 && isDuelMode())
+		return;
+
 	if (type == Item1)
 	{
 		currentPlayer->setItem(type);
@@ -835,29 +917,75 @@ void GameLayer::onLeft()
 		ac->unscheduleAllSelectors();
 	}
 
-	LoadLayer::unloadAllCharsIMG(_CharacterArray);
-	removeSprites(format("Unit/Tower/Tower{}.plist", mapId));
-
-	if (_isHardCoreGame)
+	// A quick restart goes straight into a new match that preloads exactly the
+	// same assets, so unloading them here only to load them again is wasted
+	// work. The UI/Map atlases matter most: only the Lua menu screens ever load
+	// them, and this shortcut never passes through those.
+	if (!_quickRestartArcade)
 	{
-		removeSprites(kGuardian_Han);
-		removeSprites(kGuardian_Roshi);
-		KTools::prepareFileOGG(GuardianEnum::Han, true);
-		KTools::prepareFileOGG(GuardianEnum::Roshi, true);
-	}
+		// Benched duel heroes are not in _CharacterArray but still own art.
+		vector<Hero *> everyone = isDuelMode() ? _duel->allHeroes() : _CharacterArray;
+		LoadLayer::unloadAllCharsIMG(everyone);
+		if (!isDuelMode()) // arenas have no towers
+			removeSprites(format("Unit/Tower/Tower{}.plist", mapId));
 
-	KTools::prepareFileOGG("Effect", true);
-	KTools::prepareFileOGG("Ougis", true);
+		if (_isHardCoreGame)
+		{
+			removeSprites(kGuardian_Han);
+			removeSprites(kGuardian_Roshi);
+			KTools::prepareFileOGG(GuardianEnum::Han, true);
+			KTools::prepareFileOGG(GuardianEnum::Roshi, true);
+		}
+
+		KTools::prepareFileOGG("Effect", true);
+		KTools::prepareFileOGG("Ougis", true);
+	}
 
 	_CharacterArray.clear();
 	_TowerArray.clear();
 	_KonohaFlogArray.clear();
 	_AkatsukiFlogArray.clear();
 
-	removeSprites("UI.plist");
-	removeSprites("Map.plist");
+	if (!_quickRestartArcade)
+	{
+		removeSprites("UI.plist");
+		removeSprites("Map.plist");
+	}
 
 	SimpleAudioEngine::sharedEngine()->end();
+
+	if (_quickRestartArcade)
+	{
+		_quickRestartArcade = false;
+
+		// The same handoff SelectLayer::onGameStart() does, fed from the
+		// retained team instead of a fresh selection. Kept in a static so the
+		// strings behind its raw pointers outlive this call, and so only one
+		// of these layers ever exists.
+		static SelectLayer *s_restartSelect = nullptr;
+		CC_SAFE_RELEASE(s_restartSelect);
+
+		s_restartSelect = SelectLayer::create();
+		s_restartSelect->retain();
+		s_restartSelect->setSelectHero(_retainedLeader.c_str());
+		if (!_retainedAlly1.empty())
+			s_restartSelect->setCom1Select(_retainedAlly1.c_str());
+		if (!_retainedAlly2.empty())
+			s_restartSelect->setCom2Select(_retainedAlly2.c_str());
+
+		auto handler = getGameModeHandler();
+		handler->selectLayer = s_restartSelect;
+		handler->init();
+		handler->onInitHeros();
+
+		auto loadScene = Scene::create();
+		auto loadLayer = LoadLayer::create();
+		loadLayer->preloadAudio();
+		loadScene->addChild(loadLayer);
+
+		Director::sharedDirector()->replaceScene(TransitionFade::create(1.0f, loadScene));
+		return;
+	}
 
 	lua_call_func(UiFlowKeys::kOnGameOver);
 }
@@ -868,6 +996,18 @@ void GameLayer::checkBackgroundMusic(float dt)
 	{
 		if (!SimpleAudioEngine::sharedEngine()->isBackgroundMusicPlaying())
 		{
+			// A mode's own battle theme (an Arcade boss) replaces the normal
+			// rotation for as long as its file exists, and loops.
+			if (isDuelMode())
+			{
+				const auto theme = getGameModeHandler()->getArenaOverrides().music;
+				if (!theme.empty() && FileUtils::sharedFileUtils()->isFileExist(theme.c_str()))
+				{
+					SimpleAudioEngine::sharedEngine()->playBackgroundMusic(theme.c_str(), true);
+					return;
+				}
+			}
+
 			if (!_isHardCoreGame)
 			{
 				SimpleAudioEngine::sharedEngine()->playBackgroundMusic(BATTLE_MUSIC);
@@ -978,6 +1118,45 @@ int GameLayer::getMapCount()
 		mapCount++;
 	CCLOG("===== Found %d maps =====", mapCount);
 	return mapCount;
+}
+
+int GameLayer::getDuelMapCount()
+{
+	int count = 0;
+	auto fileUtils = FileUtils::sharedFileUtils();
+	while (fileUtils->isFileExist(format("Maps/Duels/{}.tmx", count + 1).c_str()))
+		++count;
+	CCLOG("===== Found %d duel maps =====", count);
+	return count;
+}
+
+void GameLayer::queueDuelDeath(CharacterBase *deadHero)
+{
+	if (_duel->queueDeath(deadHero))
+		scheduleFollowingPause(schedule_selector(GameLayer::resolveDuelDeaths), 0.0f, 0); // once
+}
+
+void GameLayer::scheduleFollowingPause(SEL_SCHEDULE selector, float interval, unsigned int repeat)
+{
+	auto scheduler = getScheduler();
+	scheduler->scheduleSelector(selector, this, interval, repeat, 0.0f, scheduler->isTargetPaused(this));
+}
+
+void GameLayer::pollDepartingHeroes(float dt)
+{
+	_duel->tickDeparting(dt);
+}
+
+void GameLayer::resolveDuelDeaths(float dt)
+{
+	auto report = _duel->resolveDeaths();
+	if (!report.matchOver)
+		return;
+
+	// A side has no characters left: the match is decided. The mode gets to
+	// react first (e.g. Arcade saving or resetting its streak).
+	getGameModeHandler()->onSideEliminated(report.playerSideOut);
+	onGameOver(!report.playerSideOut);
 }
 
 void GameLayer::invokeAllCallbacks()
@@ -1134,7 +1313,15 @@ void GameLayer::keyEventHandle(GLFWwindow* window, int key, int scancode, int ke
 			_gLayer->_isAttackButtonRelease = true;
 		break;
 	case KEY_L: // Ramen button
-		if (keyState)
+		if (isDuelMode())
+		{
+			// Hold to charge the arena chakra pool.
+			if (keyState)
+				_gLayer->_hudLayer->item1Button->startChakraCharge();
+			else
+				_gLayer->_hudLayer->item1Button->stopChakraCharge();
+		}
+		else if (keyState)
 			_gLayer->_hudLayer->item1Button->click();
 		break;
 	case KEY_H: // Ougis 2 buttons
@@ -1156,6 +1343,14 @@ void GameLayer::keyEventHandle(GLFWwindow* window, int key, int scancode, int ke
 	case KEY_O: // skill 3
 		if (keyState)
 			_gLayer->_hudLayer->skill3Button->click();
+		break;
+	case KEY_T: // arena: swap to bench slot 1
+		if (isDuelMode() && keyState && _gLayer->_hudLayer->allySwitch1Button)
+			_gLayer->_hudLayer->allySwitch1Button->click();
+		break;
+	case KEY_Y: // arena: swap to bench slot 2
+		if (isDuelMode() && keyState && _gLayer->_hudLayer->allySwitch2Button)
+			_gLayer->_hudLayer->allySwitch2Button->click();
 		break;
 		// Gear buttons
 	case KEY_1:
@@ -1375,7 +1570,15 @@ void GameLayer::keyEventHandle(int key, int keyState)
 			_gLayer->_isAttackButtonRelease = true;
 		break;
 	case KEY_L:
-		if (keyState)
+		if (isDuelMode())
+		{
+			// Hold to charge the arena chakra pool.
+			if (keyState)
+				_gLayer->_hudLayer->item1Button->startChakraCharge();
+			else
+				_gLayer->_hudLayer->item1Button->stopChakraCharge();
+		}
+		else if (keyState)
 			_gLayer->_hudLayer->item1Button->click();
 		break;
 	case KEY_H:
@@ -1397,6 +1600,14 @@ void GameLayer::keyEventHandle(int key, int keyState)
 	case KEY_O:
 		if (keyState)
 			_gLayer->_hudLayer->skill3Button->click();
+		break;
+	case KEY_T: // arena: swap to bench slot 1
+		if (isDuelMode() && keyState && _gLayer->_hudLayer->allySwitch1Button)
+			_gLayer->_hudLayer->allySwitch1Button->click();
+		break;
+	case KEY_Y: // arena: swap to bench slot 2
+		if (isDuelMode() && keyState && _gLayer->_hudLayer->allySwitch2Button)
+			_gLayer->_hudLayer->allySwitch2Button->click();
 		break;
 	case KEY_1: case KEY_KP_1:
 		if (_gLayer->_isGear && keyState) { auto& gb = _gLayer->_gearLayer->_screwLayer->getGearBtnArray(); if (gb.size() >= 1 && gb.at(0)) gb.at(0)->click(); } break;

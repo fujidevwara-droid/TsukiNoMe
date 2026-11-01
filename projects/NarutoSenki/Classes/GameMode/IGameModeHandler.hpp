@@ -24,6 +24,10 @@ enum GameMode : uint32_t
 	Deathmatch,
 	// 3 VS 3
 	RandomDeathmatch,
+	// 1 VS 1 arena, 3 characters per side (switch / forced switch on death)
+	Duels,
+	// Endless chain of Duels stages with boss rounds
+	Arcade,
 
 	__Internal_Max_Length
 }; // namespace GameMode
@@ -111,6 +115,31 @@ public:
 	virtual void onCharacterDead(CharacterBase *c) = 0;
 	virtual void onCharacterReborn(CharacterBase *c) = 0;
 
+	// Optional hooks, all no-ops by default.
+	// The player left the match through the pause menu.
+	virtual void onSurrender() {}
+	// One side has lost every character it had. Fires once, just before the
+	// game-over flow starts. (onCharacterDead fires per individual death.)
+	virtual void onSideEliminated(bool playerSide) {}
+	// Optional replacements for the arena's map and battle music (nothing set =
+	// the normal ones). Each part is ignored on its own if its file is missing.
+	struct ArenaOverrides
+	{
+		int map = 0;   // number of a Maps/Duels/<n>.tmx map; its background follows from the number
+		string music;  // looping battle track
+	};
+	virtual ArenaOverrides getArenaOverrides() { return {}; }
+
+	// Numbers of Maps/Duels maps that belong to a specific fight (an Arcade
+	// boss) and so must never come up as a random arena.
+	virtual vector<int> getReservedArenaMaps() { return {}; }
+
+	// True if the mode writes the HUD clock label itself (e.g. "Stage 12"), so
+	// the per-second MM:SS update must leave it alone.
+	virtual bool usesCustomClock() const { return false; }
+	// Heroes that are not on the field at start but whose art must be preloaded.
+	virtual vector<string> getExtraPreloadChars() { return {}; }
+
 	inline const GameData &getGameData() { return gd; }
 	inline int getOldCheats() { return oldCheats; }
 	inline void setOldCheats(int val) { oldCheats = val; }
@@ -129,6 +158,22 @@ protected:
 	// {
 	// 	oldCheats = Cheats;
 	// }
+
+	// Replaces the name of an already-initialised hero. initHeros() only lets a
+	// mode steer the player's own side; this is the hook for forcing or
+	// re-rolling an enemy pick afterwards (e.g. an Arcade boss round).
+	void overrideHeroName(size_t index, const string &newName)
+	{
+		if (index < heroDataVector.size())
+			heroDataVector[index].name = newName;
+		if (index < heroVector.size())
+			heroVector[index] = newName;
+	}
+
+	void setSkipFlogInit(bool skip)
+	{
+		skipInitFlogs = skip;
+	}
 
 	void clearHeroArray()
 	{
@@ -346,9 +391,11 @@ protected:
 		auto _begin = excepts.begin();
 		auto _end = excepts.end();
 		int idx;
+		// setRand() reseeds from time(0), which only changes once per second, so
+		// reseeding inside the loop replays the same pick every pass. Seed once.
+		setRand();
 		for (size_t i = 0; i < kHeroNum * 2; i++) // Max loops is kHeroNum * 2
 		{
-			setRand();
 			idx = random(kHeroNum);
 			if (std::find(_begin, _end, kHeroList[idx]) == _end)
 				return kHeroList[idx];

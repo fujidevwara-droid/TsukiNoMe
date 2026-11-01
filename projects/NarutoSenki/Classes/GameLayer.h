@@ -35,6 +35,7 @@ class GameLayer;
 class HudLayer;
 class BattleRuntimeSystem;
 class SpawnSystem;
+class DuelSystem;
 struct SessionState;
 
 extern GameLayer *_gLayer;
@@ -54,6 +55,7 @@ class GameLayer : public Layer
 
 	friend class LoadLayer;
 	friend class BattleRuntimeSystem;
+	friend class DuelSystem;
 
 public:
 	GameLayer();
@@ -130,8 +132,65 @@ public:
 	void onGameStart(float dt);
 	void onGameOver(bool isWin);
 
+	// Horizontal walls of the duel arena: nobody may stand left of minX or right
+	// of maxX. They are the map edges pulled in by kArenaWallTiles tiles, and
+	// additionally never wider than what the (fixed, map-centred) camera shows,
+	// so a map wider than the screen cannot let anyone walk out of view. One
+	// definition for everything that needs the walls: movement clamps, knockback
+	// bounce, AI patrol and retreat.
+	static constexpr int kArenaWallTiles = 3;
+	static constexpr float kArenaEdgeMargin = 20.0f; // keeps a body, not just its centre, in view
+	struct ArenaBounds
+	{
+		float minX;
+		float maxX;
+	};
+	ArenaBounds arenaBounds() const
+	{
+		const float tile = currentMap->getTileSize().width;
+		const float mapW = currentMap->getMapSize().width * tile;
+
+		ArenaBounds bounds = { kArenaWallTiles * tile, mapW - kArenaWallTiles * tile };
+
+		// The duel camera is centred on the map, so the visible slice of the map
+		// is [camLeft, camLeft + screen width]. Same formula as updateViewPoint().
+		const float viewW = winSize.width;
+		const float camLeft = (mapW - viewW) / 2.0f;
+		if (camLeft > 0)
+		{
+			bounds.minX = (std::max)(bounds.minX, camLeft + kArenaEdgeMargin);
+			bounds.maxX = (std::min)(bounds.maxX, camLeft + viewW - kArenaEdgeMargin);
+		}
+		return bounds;
+	}
+
+	// Arcade "next stage": the results screen sets these and leaves through
+	// onLeft(), which then starts the next match directly instead of handing
+	// back to the menu. The team is carried as plain names so nothing depends
+	// on the finished match's heroes still existing.
+	bool _quickRestartArcade = false;
+	string _retainedLeader;
+	string _retainedAlly1;
+	string _retainedAlly2;
+
+	// Duels / Arcade (see Systems/DuelSystem.hpp)
+	DuelSystem &duel() { return *_duel; }
+	// Called by the mode handler when a hero dies; resolved next frame.
+	void queueDuelDeath(CharacterBase *deadHero);
+	void resolveDuelDeaths(float dt);
+	static int getDuelMapCount();
+	// Polls benched-but-still-finishing heroes (see DuelSystem::bench()).
+	void pollDepartingHeroes(float dt);
+	// Schedules a selector on this layer without tripping cocos2d's "paused
+	// state must match" assert. CCNode::schedule() assumes the layer is paused
+	// exactly when it is not running, but an ougi cut-in pauses the scheduler of
+	// a layer that is still running; scheduling then (a death, a swap) is fine,
+	// the timer simply starts counting when the cut-in ends.
+	void scheduleFollowingPause(SEL_SCHEDULE selector, float interval, unsigned int repeat);
+
 	void updateHudSkillButtons();
 	void setHPLose(float percent);
+	void setEnemyHPLose(float percent);
 	void setCKRLose(bool isCRK2);
 
 	void setReport(const string &slayer, const string &dead, uint32_t killNum);
@@ -207,6 +266,7 @@ private:
 
 	std::unique_ptr<BattleRuntimeSystem> _battleRuntimeSystem;
 	std::unique_ptr<SpawnSystem> _spawnSystem;
+	std::unique_ptr<DuelSystem> _duel;
 	std::unique_ptr<SessionState> _sessionState;
 };
 

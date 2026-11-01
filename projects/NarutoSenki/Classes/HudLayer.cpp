@@ -1,5 +1,7 @@
 #include "Core/Hero.hpp"
 #include "GameLayer.h"
+#include "GameMode/GameModeImpl.h"
+#include "Systems/DuelSystem.hpp"
 #include "HudLayer.h"
 #include "MyUtils/CCShake.h"
 
@@ -37,12 +39,23 @@ void MiniIcon::updateMap(Ref *sender)
 
 	if (getCharId() == poster->getCharId())
 	{
-		if (poster->getState() == State::DEAD || poster->_isVisable == false)
+		// Benched duel heroes are hidden on the minimap too.
+		if (poster->getState() == State::DEAD || poster->_isVisable == false || poster->_isBenched)
 		{
 			setVisible(false);
 		}
 		else
 		{
+			// Swapping flips a hero between Player (controlled) and Com, so pick
+			// the icon from its current role, not the one the map was built with.
+			if (isDuelMode() && !poster->isGuardian())
+			{
+				const char *iconName = poster->isPlayer() ? "player_icon.png"
+					: (poster->getGroup() == getGameLayer()->playerGroup ? "com_icon.png" : "enemy_icon.png");
+				if (auto iconFrame = getSpriteFrame(iconName))
+					setDisplayFrame(iconFrame);
+			}
+
 			setVisible(true);
 			updatePosition(poster->getPosition());
 		}
@@ -249,8 +262,18 @@ void HudLayer::initHeroInterface()
 	addChild(status_expbar, 50);
 	MenuItem *menu_button = MenuItemSprite::create(Sprite::createWithSpriteFrameName("minimap_bg.png"), nullptr, nullptr, this, menu_selector(HudLayer::pauseButtonClick));
 	menu_button->setAnchorPoint(Vec2(1, 1));
-	pauseNenu = Menu::create(menu_button, nullptr);
-	pauseNenu->setPosition(Vec2(winWidth, winHeight));
+	if (isDuelMode())
+	{
+		// The top-right corner belongs to the enemy's status bar here.
+		menu_button->setAnchorPoint(Vec2(0.5f, 1));
+		pauseNenu = Menu::create(menu_button, nullptr);
+		pauseNenu->setPosition(Vec2(winWidth / 2.0f, winHeight));
+	}
+	else
+	{
+		pauseNenu = Menu::create(menu_button, nullptr);
+		pauseNenu->setPosition(Vec2(winWidth, winHeight));
+	}
 	addChild(pauseNenu);
 
 	Sprite *killIcon = Sprite::createWithSpriteFrameName("kill_icon.png");
@@ -529,7 +552,135 @@ void HudLayer::initHeroInterface()
 			miniLayer->addChild(mi);
 			mi->updatePosition(player->getSpawnPoint());
 			mi->setCharId(player->getCharId());
+
+			// A benched duel hero still gets an icon (it is what shows once it
+			// is swapped in) but starts hidden.
+			if (player->_isBenched)
+				mi->setVisible(false);
 		}
+	}
+
+	if (isDuelMode())
+	{
+		// One-on-one arena: no kill/death score, no ramen, no minimap.
+		killIcon->setVisible(false);
+		deadIcon->setVisible(false);
+		killLabel->setVisible(false);
+		deadLabel->setVisible(false);
+		KonoLabel->setVisible(false);
+		AkaLabel->setVisible(false);
+		hengLabel->setVisible(false);
+		// The ramen button stays: here it charges chakra instead of healing.
+		miniLayer->setVisible(false);
+
+		auto &duel = getGameLayer()->duel();
+
+		// The player's swap buttons, under their own gear icons.
+		const auto &playerBench = duel.side(true).bench;
+		ActionButton **swapButtons[2] = { &allySwitch1Button, &allySwitch2Button };
+		const ABType swapTypes[2] = { AllySwitch1, AllySwitch2 };
+		for (size_t i = 0; i < 2 && i < playerBench.size(); ++i)
+		{
+			auto button = ActionButton::create(format("{}_rp.png", playerBench[i]).c_str());
+			button->setPosition(Vec2(70.0f * i, winSize.height - 92));
+			button->setDelegate(this);
+			button->setCD(15000);
+			button->setABType(swapTypes[i]);
+			button->setMarkSprite("skill_freeze.png");
+			addChild(button, 200);
+			*swapButtons[i] = button;
+		}
+		schedule(schedule_selector(HudLayer::updateAllySwitchButtons), 0.1f);
+
+		CharacterBase *enemy = nullptr;
+		for (auto hero : getGameLayer()->_CharacterArray)
+		{
+			if (hero->isCom() && !hero->_isBenched && hero->getGroup() != getGameLayer()->playerGroup)
+			{
+				enemy = hero;
+				break;
+			}
+		}
+
+		if (enemy)
+		{
+			enemy_status_bar = Sprite::createWithSpriteFrameName("status_bar_bg.png");
+			enemy_status_bar->setFlipX(true);
+			enemy_status_bar->setAnchorPoint(Vec2(1, 0));
+			enemy_status_bar->setPosition(Vec2(winWidth, winHeight - enemy_status_bar->getContentSize().height));
+			uiBatch->addChild(enemy_status_bar);
+
+			// The mirrored bar art is optional; the player's own bar flipped does
+			// the job when an atlas does not ship it.
+			auto enemyBarFrame = SpriteFrameCache::sharedSpriteFrameCache()->spriteFrameByName("status_hpbar2.png");
+			if (!enemyBarFrame)
+				enemyBarFrame = SpriteFrameCache::sharedSpriteFrameCache()->spriteFrameByName("status_hpbar.png");
+			enemy_status_hpbar = Sprite::createWithSpriteFrame(enemyBarFrame);
+			enemy_status_hpbar->setFlipX(true);
+			enemy_status_hpbar->setPosition(Vec2(winWidth - 53, winHeight - 54));
+			addChild(enemy_status_hpbar, 40);
+
+			enemy_status_hpMark = Sprite::createWithSpriteFrameName("status_hpMark.png");
+			enemy_status_hpMark->setFlipX(true);
+			enemy_status_hpMark->setAnchorPoint(Vec2(1, 0));
+			enemy_status_hpMark->setPosition(Vec2(winWidth - 54, winHeight - 105));
+			addChild(enemy_status_hpMark, 45);
+
+			// Mirrored gear frames: decoration only, gear is disabled here.
+			Sprite **gears[3] = { &enemy_gear1, &enemy_gear2, &enemy_gear3 };
+			const Vec2 gearPos[3] = { Vec2(winWidth, winSize.height - 92), Vec2(winWidth - 35, winSize.height - 112), Vec2(winWidth - 70, winSize.height - 92) };
+			for (int i = 0; i < 3; ++i)
+			{
+				auto gear = Sprite::createWithSpriteFrameName("gearbg.png");
+				gear->setFlipX(true);
+				gear->setAnchorPoint(Vec2(1, 0));
+				gear->setPosition(gearPos[i]);
+				addChild(gear, 200);
+				*gears[i] = gear;
+			}
+
+			// The enemy's bench icons sit on the first and third frame, the
+			// same slots the player's buttons use on the other side.
+			const auto &enemyBench = duel.side(false).bench;
+			Sprite **icons[2] = { &enemyAllyIcon1, &enemyAllyIcon2 };
+			const Vec2 iconPos[2] = { Vec2(winWidth, winSize.height - 92), Vec2(winWidth - 70, winSize.height - 92) };
+			for (size_t i = 0; i < 2 && i < enemyBench.size(); ++i)
+			{
+				auto icon = Sprite::createWithSpriteFrameName(format("{}_rp.png", enemyBench[i]).c_str());
+				icon->setFlipX(true);
+				icon->setAnchorPoint(Vec2(1, 0));
+				icon->setPosition(iconPos[i]);
+				addChild(icon, 200);
+				*icons[i] = icon;
+			}
+
+			refreshEnemyAvatar(enemy->getName());
+
+			enemy_hpLabel = CCLabelBMFont::create(to_cstr(enemy->getHP()), Fonts::Default);
+			enemy_hpLabel->setScale(0.35f);
+			enemy_hpLabel->setPosition(Vec2(winWidth, winHeight - 54));
+			enemy_hpLabel->setAnchorPoint(Vec2(1, 0));
+			addChild(enemy_hpLabel, 5000);
+
+			// The enemy's chakra pool, mirrored from the player's bar.
+			Sprite *enemyExpSprite = Sprite::createWithSpriteFrameName("status_ckrbar.png");
+			enemy_status_expbar = ProgressTimer::create(enemyExpSprite);
+			enemy_status_expbar->setType(kCCProgressTimerTypeRadial);
+			enemy_status_expbar->setPercentage(0);
+			enemy_status_expbar->setReverseDirection(true);
+			enemy_status_expbar->setScaleX(-1);
+			enemy_status_expbar->setPosition(Vec2(winWidth - 54, winHeight - 54));
+			addChild(enemy_status_expbar, 50);
+
+			enemyExpLabel = CCLabelBMFont::create("0 BARS", Fonts::Default);
+			enemyExpLabel->setScale(0.35f);
+			enemyExpLabel->setAnchorPoint(Vec2(0.5f, 0));
+			enemyExpLabel->setPosition(Vec2(winWidth - 94, winHeight - 54));
+			addChild(enemyExpLabel, 5000);
+		}
+
+		// Both sides start with an empty pool.
+		setDuelChakraBarUI(true);
 	}
 
 	addChild(miniLayer, 500);
@@ -633,6 +784,129 @@ void HudLayer::updateGears()
 	}
 }
 
+void HudLayer::refreshEnemyAvatar(const string &charName)
+{
+	auto frame = getSpriteFrame("{}_avator.png", charName);
+	if (!frame)
+	{
+		CCLOGERROR("Not found %s avator sprite", charName.c_str());
+		return;
+	}
+
+	if (enemy_gearMenu)
+		enemy_gearMenu->removeFromParent();
+
+	auto avatar = Sprite::createWithSpriteFrame(frame);
+	avatar->setFlipX(true);
+	auto avatarItem = MenuItemSprite::create(avatar, nullptr);
+	enemy_gearMenu = Menu::create(avatarItem, nullptr);
+	enemy_gearMenu->setAnchorPoint(Vec2(1, 0));
+
+	const Size size = avatar->getContentSize();
+	enemy_gearMenu->setPosition(Vec2(winSize.width - size.width / 2, winSize.height - size.height / 2));
+	addChild(enemy_gearMenu, 100);
+}
+
+void HudLayer::setEnemyHPLose(float percent)
+{
+	if (!enemy_status_hpbar)
+		return;
+
+	enemy_status_hpbar->runAction(RotateTo::create(0.2f, (1 - percent) * 180, (1 - percent) * 180));
+
+	if (enemy_hpLabel)
+	{
+		uint32_t hp = 0;
+		for (auto hero : getGameLayer()->_CharacterArray)
+		{
+			if (hero->isCom() && !hero->_isBenched && hero->getGroup() != getGameLayer()->playerGroup)
+			{
+				hp = hero->getHP();
+				break;
+			}
+		}
+		enemy_hpLabel->setString(to_cstr(hp));
+	}
+}
+
+void HudLayer::onDuelPlayerSwapped(int slot, const string &benchedKey, bool startCooldown)
+{
+	ActionButton *button = slot == 0 ? allySwitch1Button : allySwitch2Button;
+	ActionButton *other = slot == 0 ? allySwitch2Button : allySwitch1Button;
+	if (!button)
+		return;
+
+	if (auto frame = getSpriteFrame("{}_rp.png", benchedKey))
+		button->setDisplayFrame(frame);
+
+	// A brief lock on the other slot stops a double tap from chaining swaps.
+	if (startCooldown && other)
+		other->applyMinCooldown(500);
+}
+
+void HudLayer::onDuelEnemySwapped(int slot, const string &nowOnField, const string &benchedKey, float hpPercent)
+{
+	refreshEnemyAvatar(nowOnField);
+
+	Sprite *icon = slot == 0 ? enemyAllyIcon1 : enemyAllyIcon2;
+	if (icon)
+	{
+		if (auto frame = getSpriteFrame("{}_rp.png", benchedKey))
+			icon->setDisplayFrame(frame);
+
+		// A fallen enemy hero stays on the bench display, greyed out.
+		const bool fallen = getGameLayer()->duel().side(false).hasFallen(benchedKey);
+		icon->setColor(fallen ? Color3B(90, 90, 90) : Color3B(255, 255, 255));
+	}
+
+	setEnemyHPLose(hpPercent);
+}
+
+void HudLayer::updateAllySwitchButtons(float dt)
+{
+	// The swap buttons are created after the rest of the HUD, so by default
+	// the buttons drawn over them swallow the touches. Raise their priority
+	// once, on the first tick, when they certainly exist.
+	if (!_allySwitchTouchPriorityFixed)
+	{
+		_allySwitchTouchPriorityFixed = true;
+		auto dispatcher = Director::sharedDirector()->getTouchDispatcher();
+		for (auto button : { allySwitch1Button, allySwitch2Button })
+		{
+			if (!button)
+				continue;
+			dispatcher->removeDelegate(button);
+			dispatcher->addTargetedDelegate(button, -60, true);
+		}
+	}
+
+	if (!getGameLayer()->currentPlayer)
+		return;
+
+	// Swapping is never blocked by what the hero is doing (the outgoing hero
+	// is just benched). The one permanent lock is elimination: a slot whose
+	// hero has fallen shows an X for the rest of the match.
+	const auto &roster = getGameLayer()->duel().side(true);
+	ActionButton *buttons[2] = { allySwitch1Button, allySwitch2Button };
+	for (size_t i = 0; i < 2; ++i)
+	{
+		ActionButton *button = buttons[i];
+		if (!button)
+			continue;
+
+		const bool fallen = i < roster.bench.size() && roster.hasFallen(roster.bench[i]);
+		if (fallen)
+		{
+			if (!button->_isLock)
+				button->setLock(true);
+		}
+		else if (button->_isLock && button->getTimeCount() == 0)
+		{
+			button->unLock();
+		}
+	}
+}
+
 void HudLayer::setHPLose(float percent)
 {
 	RotateTo *ra = RotateTo::create(0.2f, -((1 - percent) * 180), -((1 - percent) * 180));
@@ -686,6 +960,14 @@ void HudLayer::setCKRLose(bool isCRK2)
 
 void HudLayer::setEXPLose()
 {
+	// The arena reuses this bar for the shared chakra pool. Every caller (a
+	// swap, a kill reward...) then redraws the right thing without knowing.
+	if (isDuelMode())
+	{
+		setDuelChakraBarUI(true);
+		return;
+	}
+
 	int exp = getGameLayer()->currentPlayer->getEXP();
 	int lvExp = (getGameLayer()->currentPlayer->getLV() - 1) * 500;
 	float Percent = (exp - lvExp) / 500.0f * 100;
@@ -705,6 +987,22 @@ void HudLayer::setEXPLose()
 	{
 		expLabel->setString(format("{}%", (int)Percent).c_str());
 	}
+}
+
+void HudLayer::setDuelChakraBarUI(bool playerSide)
+{
+	const uint32_t pool = getGameLayer()->duel().chakra(playerSide);
+	const uint32_t bars = DuelChakra::wholeBars(pool);
+
+	// The bar shows the fill of the bar being charged and wraps like an EXP
+	// bar: exactly one full bar reads as "empty, 1 BAR".
+	ProgressTimer *bar = playerSide ? status_expbar : enemy_status_expbar;
+	CCLabelBMFont *label = playerSide ? expLabel : enemyExpLabel;
+
+	if (bar)
+		bar->setPercentage(DuelChakra::percentIntoBar(pool));
+	if (label)
+		label->setString(format("{} BAR{}", bars, bars == 1 ? "" : "S").c_str());
 }
 
 void HudLayer::setTowerState(int charId)
@@ -1147,6 +1445,12 @@ bool HudLayer::getSkillFinish()
 
 bool HudLayer::getOugisEnable(bool isCKR2)
 {
+	if (isDuelMode())
+	{
+		const uint32_t pool = getGameLayer()->duel().chakra(true);
+		return pool >= (isCKR2 ? DuelChakra::kSkill5Cost : DuelChakra::kSkill4Cost);
+	}
+
 	if (!isCKR2)
 	{
 		uint32_t ckr = getGameLayer()->currentPlayer->getCKR();
@@ -1161,6 +1465,14 @@ bool HudLayer::getOugisEnable(bool isCKR2)
 
 void HudLayer::costCKR(uint32_t value, bool isCKR2)
 {
+	// The value passed in is already the arena cost (see ActionButton).
+	if (isDuelMode())
+	{
+		getGameLayer()->duel().spendChakra(true, value);
+		setCKRLose(isCKR2);
+		return;
+	}
+
 	if (!isCKR2)
 	{
 		uint32_t ckr = getGameLayer()->currentPlayer->getCKR();

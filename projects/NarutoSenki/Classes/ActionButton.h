@@ -2,6 +2,7 @@
 #include "Defines.h"
 
 class HudLayer;
+class CharacterBase;
 
 class ActionButton : public Sprite, public CCTouchDelegate
 {
@@ -48,8 +49,24 @@ public:
 	PROP(bool, _isDoubleSkill, DoubleSkill);
 	PROP_UInt(_timeCount, TimeCount);
 
-	void setLock();
+	// showX: also draw an "X" over the button (used for a fallen Duels hero).
+	void setLock(bool showX = false);
 	void unLock();
+
+	// Raises the cooldown to at least minMs (never shortens a longer one) and
+	// makes sure it counts back down. Setting the time count directly would
+	// leave it stuck, because only a click ever schedules the countdown.
+	void applyMinCooldown(uint32_t minMs);
+
+	// Arena only: holding the ramen button charges the shared chakra pool
+	// (see Systems/DuelChakra.hpp). The press is consumed, nothing is healed.
+	void startChakraCharge();
+	void stopChakraCharge();
+	void updateChakraCharge(float dt);
+
+	bool _isChargingChakra = false;
+	CharacterBase *_chargingHero = nullptr; // retained while a charge is running
+	float _chakraChargeHeld = 0.0f; // seconds held in this press
 	void clearOugisMark();
 	void setGearType(GearType type);
 
@@ -65,6 +82,7 @@ protected:
 	void onExit();
 	bool ccTouchBegan(Touch *touch, Event *event);
 	void ccTouchEnded(Touch *touch, Event *event);
+	void ccTouchCancelled(Touch *touch, Event *event);
 
 	void createFreezeAnimation();
 	void clearClick();

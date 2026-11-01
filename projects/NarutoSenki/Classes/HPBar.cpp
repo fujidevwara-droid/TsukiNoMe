@@ -1,4 +1,5 @@
 #include "Core/Hero.hpp"
+#include "GameMode/GameModeImpl.h"
 #include "HudLayer.h"
 
 bool HPBar::init(const char *szImage)
@@ -524,6 +525,9 @@ void HPBar::loseHP(float percent)
 
 		if (_delegate->isPlayer())
 			getGameLayer()->setHPLose(percent);
+		else if (isDuelMode() && _delegate->isCom() && !_delegate->_isBenched &&
+				 _delegate->getGroup() != getGameLayer()->playerGroup)
+			getGameLayer()->setEnemyHPLose(percent); // the enemy duelist's bar
 	}
 }
 

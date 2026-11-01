@@ -32,6 +32,16 @@ public:
 		CC_SAFE_RELEASE(skillSPC3Array);
 		CC_SAFE_RELEASE(skillSPC4Array);
 		CC_SAFE_RELEASE(skillSPC5Array);
+		CC_SAFE_RELEASE(skillSPC6Array);
+		CC_SAFE_RELEASE(skillSPC7Array);
+		CC_SAFE_RELEASE(skillSPC8Array);
+		CC_SAFE_RELEASE(skillSPC9Array);
+		CC_SAFE_RELEASE(skillSPC10Array);
+		CC_SAFE_RELEASE(skillSPC11Array);
+		CC_SAFE_RELEASE(skillSPC12Array);
+		CC_SAFE_RELEASE(skillSPC13Array);
+		CC_SAFE_RELEASE(skillSPC14Array);
+		CC_SAFE_RELEASE(skillSPC15Array);
 		CC_SAFE_RELEASE(skill1Array);
 		CC_SAFE_RELEASE(skill2Array);
 		CC_SAFE_RELEASE(skill3Array);
@@ -239,6 +249,122 @@ public:
 				skillSPC3Array = (CCArray*)(tmpAction->objectAtIndex(1));
 				setSpcAttackValue3(tmpValue);
 				skillSPC3Array->retain();
+			}
+
+			// Extended slots (skillSPC6-15): the same full-data pattern as
+			// SPC1-3 above (type, value, range and cooldown through readData),
+			// continuing sequentially from animation index 20 instead of the
+			// legacy 15/16/17/18/19 order of SPC5/4/1/2/3. Nothing in the base
+			// roster reads them; they are parsed and held for characters that do.
+
+			CC_BREAK_IF(animationArray->count() <= 20);
+			tmpAction = (CCArray*)(animationArray->objectAtIndex(20));
+			tmpData = (CCArray*)(tmpAction->objectAtIndex(0));
+			readData(tmpData, _spcAttackType6, tmpValue, _spcAttackRangeX6, _spcAttackRangeY6, _spcAttackCD6, tmpCombatPoint);
+			if (!_spcAttackType6.empty())
+			{
+				skillSPC6Array = (CCArray*)(tmpAction->objectAtIndex(1));
+				setSpcAttackValue6(tmpValue);
+				skillSPC6Array->retain();
+			}
+
+			CC_BREAK_IF(animationArray->count() <= 21);
+			tmpAction = (CCArray*)(animationArray->objectAtIndex(21));
+			tmpData = (CCArray*)(tmpAction->objectAtIndex(0));
+			readData(tmpData, _spcAttackType7, tmpValue, _spcAttackRangeX7, _spcAttackRangeY7, _spcAttackCD7, tmpCombatPoint);
+			if (!_spcAttackType7.empty())
+			{
+				skillSPC7Array = (CCArray*)(tmpAction->objectAtIndex(1));
+				setSpcAttackValue7(tmpValue);
+				skillSPC7Array->retain();
+			}
+
+			CC_BREAK_IF(animationArray->count() <= 22);
+			tmpAction = (CCArray*)(animationArray->objectAtIndex(22));
+			tmpData = (CCArray*)(tmpAction->objectAtIndex(0));
+			readData(tmpData, _spcAttackType8, tmpValue, _spcAttackRangeX8, _spcAttackRangeY8, _spcAttackCD8, tmpCombatPoint);
+			if (!_spcAttackType8.empty())
+			{
+				skillSPC8Array = (CCArray*)(tmpAction->objectAtIndex(1));
+				setSpcAttackValue8(tmpValue);
+				skillSPC8Array->retain();
+			}
+
+			CC_BREAK_IF(animationArray->count() <= 23);
+			tmpAction = (CCArray*)(animationArray->objectAtIndex(23));
+			tmpData = (CCArray*)(tmpAction->objectAtIndex(0));
+			readData(tmpData, _spcAttackType9, tmpValue, _spcAttackRangeX9, _spcAttackRangeY9, _spcAttackCD9, tmpCombatPoint);
+			if (!_spcAttackType9.empty())
+			{
+				skillSPC9Array = (CCArray*)(tmpAction->objectAtIndex(1));
+				setSpcAttackValue9(tmpValue);
+				skillSPC9Array->retain();
+			}
+
+			CC_BREAK_IF(animationArray->count() <= 24);
+			tmpAction = (CCArray*)(animationArray->objectAtIndex(24));
+			tmpData = (CCArray*)(tmpAction->objectAtIndex(0));
+			readData(tmpData, _spcAttackType10, tmpValue, _spcAttackRangeX10, _spcAttackRangeY10, _spcAttackCD10, tmpCombatPoint);
+			if (!_spcAttackType10.empty())
+			{
+				skillSPC10Array = (CCArray*)(tmpAction->objectAtIndex(1));
+				setSpcAttackValue10(tmpValue);
+				skillSPC10Array->retain();
+			}
+
+			CC_BREAK_IF(animationArray->count() <= 25);
+			tmpAction = (CCArray*)(animationArray->objectAtIndex(25));
+			tmpData = (CCArray*)(tmpAction->objectAtIndex(0));
+			readData(tmpData, _spcAttackType11, tmpValue, _spcAttackRangeX11, _spcAttackRangeY11, _spcAttackCD11, tmpCombatPoint);
+			if (!_spcAttackType11.empty())
+			{
+				skillSPC11Array = (CCArray*)(tmpAction->objectAtIndex(1));
+				setSpcAttackValue11(tmpValue);
+				skillSPC11Array->retain();
+			}
+
+			CC_BREAK_IF(animationArray->count() <= 26);
+			tmpAction = (CCArray*)(animationArray->objectAtIndex(26));
+			tmpData = (CCArray*)(tmpAction->objectAtIndex(0));
+			readData(tmpData, _spcAttackType12, tmpValue, _spcAttackRangeX12, _spcAttackRangeY12, _spcAttackCD12, tmpCombatPoint);
+			if (!_spcAttackType12.empty())
+			{
+				skillSPC12Array = (CCArray*)(tmpAction->objectAtIndex(1));
+				setSpcAttackValue12(tmpValue);
+				skillSPC12Array->retain();
+			}
+
+			CC_BREAK_IF(animationArray->count() <= 27);
+			tmpAction = (CCArray*)(animationArray->objectAtIndex(27));
+			tmpData = (CCArray*)(tmpAction->objectAtIndex(0));
+			readData(tmpData, _spcAttackType13, tmpValue, _spcAttackRangeX13, _spcAttackRangeY13, _spcAttackCD13, tmpCombatPoint);
+			if (!_spcAttackType13.empty())
+			{
+				skillSPC13Array = (CCArray*)(tmpAction->objectAtIndex(1));
+				setSpcAttackValue13(tmpValue);
+				skillSPC13Array->retain();
+			}
+
+			CC_BREAK_IF(animationArray->count() <= 28);
+			tmpAction = (CCArray*)(animationArray->objectAtIndex(28));
+			tmpData = (CCArray*)(tmpAction->objectAtIndex(0));
+			readData(tmpData, _spcAttackType14, tmpValue, _spcAttackRangeX14, _spcAttackRangeY14, _spcAttackCD14, tmpCombatPoint);
+			if (!_spcAttackType14.empty())
+			{
+				skillSPC14Array = (CCArray*)(tmpAction->objectAtIndex(1));
+				setSpcAttackValue14(tmpValue);
+				skillSPC14Array->retain();
+			}
+
+			CC_BREAK_IF(animationArray->count() <= 29);
+			tmpAction = (CCArray*)(animationArray->objectAtIndex(29));
+			tmpData = (CCArray*)(tmpAction->objectAtIndex(0));
+			readData(tmpData, _spcAttackType15, tmpValue, _spcAttackRangeX15, _spcAttackRangeY15, _spcAttackCD15, tmpCombatPoint);
+			if (!_spcAttackType15.empty())
+			{
+				skillSPC15Array = (CCArray*)(tmpAction->objectAtIndex(1));
+				setSpcAttackValue15(tmpValue);
+				skillSPC15Array->retain();
 			}
 			break;
 		}
@@ -559,6 +685,15 @@ public:
 	/** Perform default AI logic (Hero::perform) */
 	virtual void setAI(float dt)
 	{
+		// A benched duel hero has no AI. It is frozen as well, so this should
+		// never tick; the check is the safety net.
+		if (_isBenched)
+			return;
+
+		// A forced chakra charge holds the AI still until it ends (arena only).
+		if (_isAIChargingChakra)
+			return;
+
 		// Not check nullable reference
 		aiHandler();
 		// proxy->perform(this);

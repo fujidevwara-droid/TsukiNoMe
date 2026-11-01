@@ -2,6 +2,9 @@
 #include "GameLayer.h"
 #include "Core/Hero.hpp"
 #include "GameMode/GameModeImpl.h"
+#include "MyUtils/KTools.h"
+#include "MyUtils/UnlockRequirements.hpp"
+#include "Systems/DuelSystem.hpp"
 
 GameOver::GameOver()
 {
@@ -11,9 +14,17 @@ GameOver::GameOver()
 
 GameOver::~GameOver()
 {
-	AnimationCache::purgeSharedAnimationCache();
-	SpriteFrameCache::sharedSpriteFrameCache()->removeUnusedSpriteFrames();
-	TextureCache::sharedTextureCache()->removeUnusedTextures();
+	// An Arcade quick restart skips the menu detour that normally reloads the
+	// UI atlases right after this purge. Frames that only the loading screen
+	// uses sit at refcount 1 here, so purging them would pull them out from
+	// under the very next LoadLayer.
+	auto layer = getGameLayer();
+	if (!layer || !layer->_quickRestartArcade)
+	{
+		AnimationCache::purgeSharedAnimationCache();
+		SpriteFrameCache::sharedSpriteFrameCache()->removeUnusedSpriteFrames();
+		TextureCache::sharedTextureCache()->removeUnusedTextures();
+	}
 }
 
 bool GameOver::init(RenderTexture *snapshoot)
@@ -144,7 +155,7 @@ void GameOver::listResult()
 			resultScore = ((killDead - ((_totalSecond / 60.0f - 10) * 4)) / 40) * 100;
 	}
 
-	if (_totalSecond < 1 * 60 + 5 && _isWin)
+	if (_totalSecond < 1 * 60 + 5 && _isWin && !isDuelMode())
 	{
 		SimpleAudioEngine::sharedEngine()->stopBackgroundMusic(true);
 		Director::sharedDirector()->end();
@@ -257,8 +268,12 @@ void GameOver::listResult()
 
 	if (Cheats < kMaxCheats)
 	{
-		// Verify that the game total kills is valid
-		if ((akatsukiKill + konohaKill) != getGameLayer()->getTotalKills())
+		// Verify that the game total kills is valid.
+		// Not for the arena: heroes that fall there are removed from the
+		// character list during the match, so a kill scored by a hero that
+		// later died is still in the running total but missing from this sum.
+		// That mismatch is expected there, not tampering.
+		if (!isDuelMode() && (akatsukiKill + konohaKill) != getGameLayer()->getTotalKills())
 		{
 			SimpleAudioEngine::sharedEngine()->stopBackgroundMusic(true);
 			Director::sharedDirector()->end();
@@ -388,9 +403,35 @@ void GameOver::listResult()
 			else if (currPlayer->getName() == HeroEnum::Nagato)
 				resultChar = HeroEnum::Pain;
 
-			if (_isWin)
+			// In the arena the hero that is on the field is not necessarily the one
+			// that was picked, and may be transformed: use its roster name.
+			if (isDuelMode())
+				resultChar = getGameLayer()->duel().keyOf(static_cast<Hero *>(currPlayer), true);
+
+			if (_isWin && getGameMode() == GameMode::Duels)
 			{
-				int winNum = KTools::readWinNumFromSQL(resultChar);
+				// Duels keep their own best time per hero. A duel is not a
+				// regular win, so it neither counts towards win totals nor
+				// replaces the story-mode best time.
+				const int currentTime = getGameLayer()->_minute * 60 + getGameLayer()->_second;
+				const string best = KTools::readDuelBestTime(resultChar.c_str());
+
+				bool isNewRecord = best.empty();
+				if (!isNewRecord && best.length() >= 8)
+				{
+					const int recorded = to_int(best.substr(0, 2).c_str()) * 3600 +
+										 to_int(best.substr(3, 2).c_str()) * 60 +
+										 to_int(best.substr(6, 2).c_str());
+					isNewRecord = currentTime < recorded;
+				}
+				if (isNewRecord)
+					KTools::saveDuelBestTime(resultChar.c_str(), tempTime);
+			}
+			// Arcade progress is saved by its mode handler the moment a side is
+			// eliminated, so there is nothing to record for it here.
+			else if (_isWin && getGameMode() != GameMode::Arcade)
+			{
+				int winNum = KTools::readWinNumFromSQL(resultChar.c_str());
 				if (resultScore >= 140)
 					winNum += 3;
 				else if (resultScore >= 120)
@@ -399,7 +440,8 @@ void GameOver::listResult()
 					winNum += 1;
 
 				auto realWin = std::to_string(winNum);
-				KTools::saveSQLite("CharRecord", "name", resultChar, "column1", realWin, false);
+				KTools::saveSQLite("CharRecord", "name", resultChar.c_str(), "column1", realWin, false);
+				Unlocks::onProgressChanged(); // a win total may have just met an unlock rule
 
 				if (getGameLayer()->_isRandomChar && resultScore >= 120)
 				{
@@ -440,12 +482,12 @@ void GameOver::listResult()
 					}
 				}
 
-				auto bestTime = KTools::readSQLite("CharRecord", "name", resultChar, "column3");
+				auto bestTime = KTools::readSQLite("CharRecord", "name", resultChar.c_str(), "column3");
 				if (bestTime.empty())
 				{
-					KTools::saveSQLite("CharRecord", "name", resultChar, "column3", tempTime, false);
+					KTools::saveSQLite("CharRecord", "name", resultChar.c_str(), "column3", tempTime, false);
 				}
-				else
+				else if (bestTime.length() >= 8)
 				{
 					int recordHour = to_int(bestTime.substr(0, 2).c_str());
 					int recordMinute = to_int(bestTime.substr(3, 2).c_str());
@@ -457,7 +499,7 @@ void GameOver::listResult()
 
 					if (isNewRecord)
 					{
-						KTools::saveSQLite("CharRecord", "name", resultChar, "column3", tempTime, false);
+						KTools::saveSQLite("CharRecord", "name", resultChar.c_str(), "column3", tempTime, false);
 					}
 				}
 			}
@@ -475,6 +517,28 @@ void GameOver::listResult()
 	overMenu->setPosition(Vec2(winSize.width / 2 + result_bg->getContentSize().width / 2 - 12, winSize.height / 2 + result_bg->getContentSize().height / 2 - 18));
 	addChild(overMenu, 7);
 
+	// Arcade: carry on with the same team (after a win) or start a fresh run
+	// with it (after a loss).
+	if (getGameMode() == GameMode::Arcade)
+	{
+		// start_btn.png lives in the select-screen atlas, which is not always
+		// loaded here; the confirm button art is the fallback.
+		const bool hasStartArt = SpriteFrameCache::sharedSpriteFrameCache()->spriteFrameByName("start_btn.png") != nullptr;
+		start_btn = MenuItemSprite::create(
+			Sprite::createWithSpriteFrameName(hasStartArt ? "start_btn.png" : "yes_btn1.png"),
+			Sprite::createWithSpriteFrameName(hasStartArt ? "start_btn.png" : "yes_btn2.png"),
+			nullptr, this, menu_selector(GameOver::onStartNextStage));
+		Menu *startMenu = Menu::create(start_btn, nullptr);
+		startMenu->setAnchorPoint(Vec2(1, 0));
+		startMenu->setPosition(Vec2(winSize.width / 2 + result_bg->getContentSize().width / 2 - 12, winSize.height / 2 - result_bg->getContentSize().height / 2 + 12));
+		addChild(startMenu, 7);
+	}
+
+	// Whatever got unlocked during the match or by the records saved above.
+	auto justUnlocked = Unlocks::drainNotifications();
+	_unlockPopupQueue.insert(_unlockPopupQueue.end(), justUnlocked.begin(), justUnlocked.end());
+	showNextUnlockedPopup();
+
 	getGameLayer()->_isSurrender = false;
 
 	getGameModeHandler()->onGameOver();
@@ -484,6 +548,103 @@ void GameOver::onUPloadBtn(Ref *sender)
 {
 	auto tip = CCTips::create("ServerMainten");
 	addChild(tip, 5000);
+}
+
+void GameOver::onStartNextStage(Ref *sender)
+{
+	SimpleAudioEngine::sharedEngine()->playEffect("Audio/Menu/confirm.ogg");
+
+	auto layer = getGameLayer();
+
+	// The team as it was picked at the start of the match (the Arcade mode
+	// saves it then), not what is on the field now: a hero that ends the
+	// fight transformed would otherwise carry that form into the next stage.
+	KTools::ArcadeTeam team;
+	if (KTools::readArcadeTeam(team))
+	{
+		layer->_retainedLeader = team.leader;
+		layer->_retainedAlly1 = team.ally1;
+		layer->_retainedAlly2 = team.ally2;
+	}
+	else
+	{
+		// Should not happen, but a stage should never fail to start because
+		// of it: fall back to the live roster.
+		auto &duel = layer->duel();
+		Hero *active = duel.activeHero(true);
+		layer->_retainedLeader = active ? duel.keyOf(active, true) : string(resultChar);
+		const auto &bench = duel.side(true).bench;
+		layer->_retainedAlly1 = bench.size() > 0 ? bench[0] : "";
+		layer->_retainedAlly2 = bench.size() > 1 ? bench[1] : "";
+	}
+
+	layer->_quickRestartArcade = true;
+
+	// The same teardown as leaving to the menu; GameLayer::onLeft() sees the
+	// flag and starts the next match instead of going back to the menu.
+	layer->_isExiting = true;
+	Director::sharedDirector()->popScene();
+}
+
+void GameOver::showNextUnlockedPopup()
+{
+	// One at a time; closing the current one advances the queue.
+	if (unlockedLayer || _unlockPopupQueue.empty())
+		return;
+
+	const string heroName = _unlockPopupQueue.front();
+	_unlockPopupQueue.erase(_unlockPopupQueue.begin());
+
+	SimpleAudioEngine::sharedEngine()->playEffect("Audio/Menu/select.ogg");
+	unlockedLayer = Layer::create();
+
+	// Same container as the exit confirmation, with its own title and a
+	// single dismiss button.
+	auto bg = Sprite::createWithSpriteFrameName("confirm_bg.png");
+	bg->setPosition(Vec2(winSize.width / 2, winSize.height / 2));
+
+	// The dedicated title art is optional; a text label stands in without it.
+	Node *title = nullptr;
+	if (auto titleFrame = SpriteFrameCache::sharedSpriteFrameCache()->spriteFrameByName("unlocked_title.png"))
+	{
+		title = Sprite::createWithSpriteFrame(titleFrame);
+	}
+	else
+	{
+		auto label = CCLabelBMFont::create("UNLOCKED!", Fonts::Default);
+		label->setScale(0.5f);
+		title = label;
+	}
+	title->setPosition(Vec2(winSize.width / 2, winSize.height / 2 + 38));
+
+	// Wrapped to the container width so a long hero name stays inside it.
+	auto text = CCLabelBMFont::create(format("{} has been unlocked!", heroName).c_str(), Fonts::Default,
+									  bg->getContentSize().width - 20, kCCTextAlignmentCenter);
+	text->setScale(0.4f);
+	text->setPosition(Vec2(winSize.width / 2, winSize.height / 2 + 8));
+
+	// Same fallback for the dismiss button: the confirm popup's own art.
+	const bool hasOkArt = SpriteFrameCache::sharedSpriteFrameCache()->spriteFrameByName("ok_btn1.png") != nullptr;
+	MenuItem *ok_btn = MenuItemSprite::create(
+		Sprite::createWithSpriteFrameName(hasOkArt ? "ok_btn1.png" : "yes_btn1.png"),
+		Sprite::createWithSpriteFrameName(hasOkArt ? "ok_btn2.png" : "yes_btn2.png"),
+		this, menu_selector(GameOver::onUnlockedPopupOK));
+	Menu *menu = Menu::create(ok_btn, nullptr);
+	menu->setPosition(Vec2(winSize.width / 2, winSize.height / 2 - 30));
+
+	unlockedLayer->addChild(bg, 1);
+	unlockedLayer->addChild(menu, 2);
+	unlockedLayer->addChild(title, 2);
+	unlockedLayer->addChild(text, 2);
+	addChild(unlockedLayer, 500);
+}
+
+void GameOver::onUnlockedPopupOK(Ref *sender)
+{
+	SimpleAudioEngine::sharedEngine()->playEffect("Audio/Menu/confirm.ogg");
+	unlockedLayer->removeFromParent();
+	unlockedLayer = nullptr;
+	showNextUnlockedPopup();
 }
 
 void GameOver::onBackToMenu(Ref *sender)

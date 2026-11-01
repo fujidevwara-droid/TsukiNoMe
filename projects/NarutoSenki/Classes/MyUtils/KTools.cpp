@@ -1,5 +1,7 @@
 #include "KTools.h"
 #include "MyUtils/CMD5Checksum.h"
+#include "MyUtils/UnlockRequirements.hpp"
+#include <set>
 #include "Utils/Cocos2dxHelper.hpp"
 #if (CC_TARGET_PLATFORM == CC_PLATFORM_ANDROID)
 #include "../../../cocos2dx/platform/android/jni/JniHelper.h"
@@ -343,123 +345,134 @@ string KTools::readFromSQLite(const char *table /* ="GameRecord" */, const char 
 	return "";
 }
 
+// Locates the row whose decoded key column equals `value` in a two-column
+// result set from sqlite3_get_table (cell [0..1] are the headers). Returns the
+// 1-based row index, or 0 when there is no match. NULL cells are skipped.
+static int findKeyedRow(char **result, int rows, const char *value)
+{
+	for (int r = 1; r <= rows; ++r)
+	{
+		const char *cell = result[r * 2];
+		if (cell == nullptr)
+			continue;
+
+		string key = cell;
+		KTools::decode(key);
+		if (key == value)
+			return r;
+	}
+	return 0;
+}
+
 string KTools::readSQLite(const char *table, const char *column, const char *value, const char *targetColumn)
 {
 	sqlite3 *pDB = prepareTableInDB();
+	if (pDB == nullptr)
+		return "";
 
-	if (pDB != nullptr)
+	char **result = nullptr;
+	int rows = 0;
+	int cols = 0;
+	string sql = format("select {},{} from {}", column, targetColumn, table);
+	sqlite3_get_table(pDB, sql.c_str(), &result, &rows, &cols, nullptr);
+
+	string target;
+	if (result != nullptr)
 	{
-		char **result;
-
-		string sql = format("select {},{} from  {}", column, targetColumn, table);
-		int row = 0;
-		int column = 0;
-
-		sqlite3_get_table(pDB, sql.c_str(), &result, &row, &column, nullptr);
-
-		string target;
-		for (int i = 0; i <= row * 2; i++)
+		int r = findKeyedRow(result, rows, value);
+		// A NULL cell is a column that was added after the row was created.
+		if (r > 0 && result[r * 2 + 1] != nullptr)
 		{
-			string str = result[i];
+			target = result[r * 2 + 1];
+			decode(target);
 
-			decode(str);
-			if (str == value)
+			// Numeric columns are normalised; free-text ones (times) are not.
+			// Normalising only a row that was actually found keeps "no row"
+			// (empty) distinguishable from "row holding 0".
+			if (!is_same(targetColumn, "column3") &&
+				!is_same(targetColumn, "column4") &&
+				!is_same(targetColumn, "duel_time"))
 			{
-				target = result[i + 1];
-				decode(target);
-				break;
+				target = std::to_string(to_int(target.c_str()));
 			}
 		}
-
-		if (!is_same(targetColumn, "column3") &&
-			!is_same(targetColumn, "column4"))
-		{
-			target = std::to_string(to_int(target.c_str()));
-		}
-
 		sqlite3_free_table(result);
-		sqlite3_close(pDB);
-		return target;
 	}
+
 	sqlite3_close(pDB);
-	return "";
+	return target;
 }
 
 void KTools::saveSQLite(const char *table, const char *relatedColumn, const char *value, const char *targetColumn, const string &targetValue, bool isPlus)
 {
-	char *errorMsg = nullptr;
 	sqlite3 *pDB = prepareTableInDB();
-
-	if (pDB != nullptr)
-	{
-		char **result;
-
-		string sql = format("select {},{} from {}", relatedColumn, targetColumn, table);
-		int row = 0;
-		int column = 0;
-
-		sqlite3_get_table(pDB, sql.c_str(), &result, &row, &column, nullptr);
-
-		string target;
-		string columnValue;
-		for (int i = 0; i <= row * 2; i++)
-		{
-			string str = result[i];
-			decode(str);
-			if (str == value)
-			{
-				columnValue = result[i];
-				target = result[i + 1];
-				decode(target);
-				break;
-			}
-		}
-
-		string saveValue;
-		if (isPlus)
-		{
-			saveValue = targetValue + target;
-			sql = format(("update {} set {}='{}' where {}='{}'"), table, targetColumn, saveValue, relatedColumn, columnValue);
-		}
-		else
-		{
-			saveValue = targetValue;
-		}
-		int key = rand() % 50 + 40;
-		encode(saveValue, key);
-		sql = format("update {} set {}='{}' where {}='{}'", table, targetColumn, saveValue, relatedColumn, columnValue);
-		sqlite3_exec(pDB, sql.c_str(), nullptr, nullptr, nullptr);
-
-		if (isPlus)
-		{
-			char **result2;
-			sql = "select coin from GameRecord";
-			sqlite3_get_table(pDB, sql.c_str(), &result2, &row, &column, nullptr);
-			string str2 = result2[1];
-			decode(str2);
-
-			string str3 = "uuuuu<";
-			decode(str3);
-
-			if (to_int(str2.c_str()) > to_int(str3.c_str()))
-			{
-				auto coin = "uuuuu<";
-				sql = format("update GameRecord set coin='{}'", coin);
-				sqlite3_exec(pDB, sql.c_str(), nullptr, nullptr, &errorMsg);
-			}
-		}
-
-		sqlite3_free_table(result);
-		sqlite3_close(pDB);
+	if (pDB == nullptr)
 		return;
+
+	char **result = nullptr;
+	int rows = 0;
+	int cols = 0;
+	string sql = format("select {},{} from {}", relatedColumn, targetColumn, table);
+	sqlite3_get_table(pDB, sql.c_str(), &result, &rows, &cols, nullptr);
+
+	if (result != nullptr)
+	{
+		int r = findKeyedRow(result, rows, value);
+		if (r > 0)
+		{
+			// The WHERE clause needs the key exactly as stored (still encoded).
+			string storedKey = result[r * 2];
+
+			string current;
+			if (result[r * 2 + 1] != nullptr)
+			{
+				current = result[r * 2 + 1];
+				decode(current);
+			}
+
+			string saveValue = isPlus ? targetValue + current : targetValue;
+			encode(saveValue, rand() % 50 + 40);
+
+			sql = format("update {} set {}='{}' where {}='{}'", table, targetColumn, saveValue, relatedColumn, storedKey);
+			sqlite3_exec(pDB, sql.c_str(), nullptr, nullptr, nullptr);
+		}
+		sqlite3_free_table(result);
 	}
+
+	if (isPlus)
+	{
+		// Clamp the coin balance to its cap.
+		char **coinResult = nullptr;
+		int coinRows = 0;
+		int coinCols = 0;
+		sql = "select coin from GameRecord";
+		sqlite3_get_table(pDB, sql.c_str(), &coinResult, &coinRows, &coinCols, nullptr);
+		if (coinResult != nullptr)
+		{
+			if (coinRows >= 1 && coinResult[1] != nullptr)
+			{
+				string balance = coinResult[1];
+				decode(balance);
+
+				string cap = "uuuuu<";
+				decode(cap);
+
+				if (to_int(balance.c_str()) > to_int(cap.c_str()))
+				{
+					sql = "update GameRecord set coin='uuuuu<'";
+					sqlite3_exec(pDB, sql.c_str(), nullptr, nullptr, nullptr);
+				}
+			}
+			sqlite3_free_table(coinResult);
+		}
+	}
+
 	sqlite3_close(pDB);
 }
 
 int KTools::readWinNumFromSQL(const char *heroName)
 {
-	auto winNum = readSQLite("CharRecord", "name", heroName, "column1").c_str();
-	return to_int(winNum);
+	return to_int(readSQLite("CharRecord", "name", heroName, "column1").c_str());
 }
 
 int KTools::readCoinFromSQL()
@@ -470,8 +483,224 @@ int KTools::readCoinFromSQL()
 
 const char *KTools::readRecordTimeFromSQL(const char *heroName)
 {
-	auto recordTime = readSQLite("CharRecord", "name", heroName, "column3").c_str();
-	return recordTime;
+	// Static so the pointer outlives the call (the old version returned the
+	// buffer of a temporary string).
+	static string recordTime;
+	recordTime = readSQLite("CharRecord", "name", heroName, "column3");
+	return recordTime.c_str();
+}
+
+// ---------------------------------------------------------------------------
+// Duels / Arcade persistence
+// ---------------------------------------------------------------------------
+
+// SQLite has no "add column if missing". The first attempt adds it, later ones
+// fail harmlessly, so each column is only attempted once per session.
+static void ensureColumn(const char *table, const char *column, const char *type)
+{
+	static std::set<string> attempted;
+	string id = format("{}.{}", table, column);
+	if (!attempted.insert(id).second)
+		return;
+
+	sqlite3 *pDB = KTools::prepareTableInDB();
+	if (pDB == nullptr)
+	{
+		attempted.erase(id);
+		return;
+	}
+	string sql = format("alter table {} add column {} {}", table, column, type);
+	sqlite3_exec(pDB, sql.c_str(), nullptr, nullptr, nullptr);
+	sqlite3_close(pDB);
+}
+
+// Reads the first row of a single GameRecord column and decodes it.
+static bool readGameRecordCell(const char *column, string &out)
+{
+	sqlite3 *pDB = KTools::prepareTableInDB();
+	if (pDB == nullptr)
+		return false;
+
+	char **result = nullptr;
+	int rows = 0;
+	int cols = 0;
+	string sql = format("select {} from GameRecord", column);
+	sqlite3_get_table(pDB, sql.c_str(), &result, &rows, &cols, nullptr);
+
+	bool found = false;
+	if (result != nullptr)
+	{
+		if (rows >= 1 && result[1] != nullptr)
+		{
+			out = result[1];
+			KTools::decode(out);
+			found = true;
+		}
+		sqlite3_free_table(result);
+	}
+	sqlite3_close(pDB);
+	return found;
+}
+
+static void writeGameRecordCell(const char *column, string value)
+{
+	sqlite3 *pDB = KTools::prepareTableInDB();
+	if (pDB == nullptr)
+		return;
+
+	KTools::encode(value, rand() % 60 + 40);
+	string sql = format("update GameRecord set {}='{}'", column, value);
+	sqlite3_exec(pDB, sql.c_str(), nullptr, nullptr, nullptr);
+	sqlite3_close(pDB);
+}
+
+string KTools::readDuelBestTime(const char *heroName)
+{
+	ensureColumn("CharRecord", "duel_time", "char(10)");
+	return readSQLite("CharRecord", "name", heroName, "duel_time");
+}
+
+void KTools::saveDuelBestTime(const char *heroName, const string &time)
+{
+	ensureColumn("CharRecord", "duel_time", "char(10)");
+	saveSQLite("CharRecord", "name", heroName, "duel_time", time, false);
+}
+
+int KTools::readArcadeStreak()
+{
+	ensureColumn("GameRecord", "streak", "char(20)");
+	string raw;
+	return readGameRecordCell("streak", raw) ? to_int(raw.c_str()) : 0;
+}
+
+void KTools::saveArcadeStreak(int streak)
+{
+	ensureColumn("GameRecord", "streak", "char(20)");
+	writeGameRecordCell("streak", std::to_string(streak));
+}
+
+int KTools::readArcadeBest(const char *heroName)
+{
+	ensureColumn("CharRecord", "arcade_record", "char(20)");
+	return to_int(readSQLite("CharRecord", "name", heroName, "arcade_record").c_str());
+}
+
+void KTools::saveArcadeBestIfHigher(const char *heroName, int stage)
+{
+	if (stage <= readArcadeBest(heroName))
+		return;
+	saveSQLite("CharRecord", "name", heroName, "arcade_record", std::to_string(stage), false);
+}
+
+void KTools::saveArcadeTeam(const ArcadeTeam &team)
+{
+	ensureColumn("GameRecord", "dm_team", "char(64)");
+	writeGameRecordCell("dm_team", team.leader + "|" + team.ally1 + "|" + team.ally2);
+}
+
+bool KTools::readArcadeTeam(ArcadeTeam &team)
+{
+	ensureColumn("GameRecord", "dm_team", "char(64)");
+
+	string raw;
+	if (!readGameRecordCell("dm_team", raw))
+		return false;
+
+	// "leader|ally1|ally2" - the allies may be empty.
+	string parts[3];
+	size_t start = 0;
+	for (int i = 0; i < 3; ++i)
+	{
+		size_t bar = (i < 2) ? raw.find('|', start) : string::npos;
+		parts[i] = raw.substr(start, bar == string::npos ? string::npos : bar - start);
+		if (bar == string::npos)
+			break;
+		start = bar + 1;
+	}
+
+	team = { parts[0], parts[1], parts[2] };
+	return !team.leader.empty();
+}
+
+static void ensureUnlockTable()
+{
+	static bool created = false;
+	if (created)
+		return;
+
+	sqlite3 *pDB = KTools::prepareTableInDB();
+	if (pDB == nullptr)
+		return;
+	sqlite3_exec(pDB, "create table if not exists UnlockedChar (name char(20) primary key, unlocked char(10))", nullptr, nullptr, nullptr);
+	sqlite3_close(pDB);
+	created = true;
+}
+
+static void setUnlockRow(const char *heroName, const char *flag)
+{
+	ensureUnlockTable();
+
+	if (!KTools::readSQLite("UnlockedChar", "name", heroName, "unlocked").empty())
+	{
+		KTools::saveSQLite("UnlockedChar", "name", heroName, "unlocked", flag, false);
+		return;
+	}
+
+	sqlite3 *pDB = KTools::prepareTableInDB();
+	if (pDB == nullptr)
+		return;
+
+	string name = heroName;
+	KTools::encode(name, rand() % 50 + 40);
+	string state = flag;
+	KTools::encode(state, rand() % 60 + 40);
+
+	string sql = format("insert into UnlockedChar values('{}','{}')", name, state);
+	sqlite3_exec(pDB, sql.c_str(), nullptr, nullptr, nullptr);
+	sqlite3_close(pDB);
+}
+
+bool KTools::hasUnlockRecord(const char *heroName)
+{
+	ensureUnlockTable();
+	return !readSQLite("UnlockedChar", "name", heroName, "unlocked").empty();
+}
+
+bool KTools::isCharacterUnlocked(const char *heroName)
+{
+	ensureUnlockTable();
+	string state = readSQLite("UnlockedChar", "name", heroName, "unlocked");
+	return state.empty() || to_int(state.c_str()) != 0;
+}
+
+void KTools::unlockCharacter(const char *heroName)
+{
+	setUnlockRow(heroName, "1");
+}
+
+void KTools::lockCharacter(const char *heroName)
+{
+	setUnlockRow(heroName, "0");
+}
+
+bool KTools::isHeroUnlocked(const char *heroName)
+{
+	return Unlocks::isUnlocked(heroName);
+}
+
+bool KTools::isHeroUnlockEligible(const char *heroName)
+{
+	return Unlocks::isEligible(heroName);
+}
+
+bool KTools::tryUnlockHeroViaPurchase(const char *heroName)
+{
+	return Unlocks::tryPurchase(heroName);
+}
+
+string KTools::getUnlockConditionLines(const char *heroName)
+{
+	return Unlocks::describeJoined(heroName);
 }
 
 string KTools::encodeData(string data)
@@ -530,4 +759,67 @@ CCTips *CCTips::create(const char *tips)
 		delete ab;
 		return nullptr;
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Greyscale
+// ---------------------------------------------------------------------------
+
+// Luminance-weighted grey. Alpha and the vertex colour (opacity, tint) are kept,
+// so a faded or tinted node still behaves normally while it is grey.
+static const GLchar *kGrayscaleFragment =
+	"#ifdef GL_ES\n"
+	"precision mediump float;\n"
+	"#endif\n"
+	"varying vec2 v_texCoord;\n"
+	"varying vec4 v_fragmentColor;\n"
+	"uniform sampler2D CC_Texture0;\n"
+	"void main()\n"
+	"{\n"
+	"    vec4 texel = texture2D(CC_Texture0, v_texCoord);\n"
+	"    float grey = dot(texel.rgb, vec3(0.299, 0.587, 0.114));\n"
+	"    gl_FragColor = vec4(vec3(grey), texel.a) * v_fragmentColor;\n"
+	"}\n";
+
+static const char *kGrayscaleProgramKey = "NS_ShaderGrayscale";
+
+// Built on first use and kept in the shader cache. Looking it up there each
+// time (instead of holding a raw pointer) means a cache purge or a rebuilt GL
+// context just makes the next call compile it again.
+static CCGLProgram *getGrayscaleProgram()
+{
+	auto cache = CCShaderCache::sharedShaderCache();
+	if (auto program = cache->programForKey(kGrayscaleProgramKey))
+		return program;
+
+	auto program = new CCGLProgram();
+	if (!program->initWithVertexShaderByteArray(ccPositionTextureColor_vert, kGrayscaleFragment))
+	{
+		program->release();
+		return nullptr;
+	}
+
+	program->addAttribute(kCCAttributeNamePosition, kCCVertexAttrib_Position);
+	program->addAttribute(kCCAttributeNameColor, kCCVertexAttrib_Color);
+	program->addAttribute(kCCAttributeNameTexCoord, kCCVertexAttrib_TexCoords);
+	program->link();
+	program->updateUniforms();
+
+	cache->addProgram(program, kGrayscaleProgramKey); // the cache keeps its own reference
+	program->release();
+	return program;
+}
+
+void KTools::setNodeGrayscale(CCNode *node, bool enable)
+{
+	if (node == nullptr)
+		return;
+
+	CCGLProgram *program = enable
+		? getGrayscaleProgram()
+		: CCShaderCache::sharedShaderCache()->programForKey(kCCShader_PositionTextureColor);
+
+	// A failed compile leaves the node as it was rather than blank.
+	if (program != nullptr)
+		node->setShaderProgram(program);
 }

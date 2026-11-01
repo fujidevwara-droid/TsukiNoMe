@@ -96,6 +96,26 @@ public:
 	static const char *readRecordTimeFromSQL(const char *heroName);
 
 	static string encodeData(string data);
+
+	// Duels / Arcade records
+	static string readDuelBestTime(const char *heroName);
+	static void saveDuelBestTime(const char *heroName, const string &time);
+	static int readArcadeStreak();
+	static void saveArcadeStreak(int streak);
+	static int readArcadeBest(const char *heroName);
+	static void saveArcadeBestIfHigher(const char *heroName, int stage);
+
+	// Character unlocks
+	static bool hasUnlockRecord(const char *heroName);
+	static bool isCharacterUnlocked(const char *heroName);
+	static void unlockCharacter(const char *heroName);
+	static void lockCharacter(const char *heroName);
+	static bool isHeroUnlocked(const char *heroName);
+	static bool isHeroUnlockEligible(const char *heroName);
+	static bool tryUnlockHeroViaPurchase(const char *heroName);
+	static string getUnlockConditionLines(const char *heroName);
+
+	static void setNodeGrayscale(CCNode *node, bool enable);
 };
 
 /* CCTips.h */

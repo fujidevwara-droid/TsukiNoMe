@@ -1,6 +1,8 @@
 #include "ActionButton.h"
 #include "CharacterBase.h"
+#include "GameMode/GameModeImpl.h"
 #include "HudLayer.h"
+#include "Systems/DuelSystem.hpp"
 
 ActionButton::ActionButton()
 {
@@ -67,6 +69,13 @@ bool ActionButton::ccTouchBegan(Touch *touch, Event *event)
 	{
 		return false;
 	}
+	// Arena ramen button: hold to charge, there is no click and no cooldown.
+	if (_abType == Item1 && isDuelMode())
+	{
+		startChakraCharge();
+		return true;
+	}
+
 	click();
 
 	return true;
@@ -76,6 +85,90 @@ void ActionButton::ccTouchEnded(Touch *touch, Event *event)
 {
 	if (_abType == NAttack)
 		_delegate->attackButtonRelease();
+
+	if (_abType == Item1)
+		stopChakraCharge();
+}
+
+void ActionButton::ccTouchCancelled(Touch *touch, Event *event)
+{
+	// A system alert or another touch can take the finger away without an
+	// "ended"; the charge must not keep running against a finger that is gone.
+	if (_abType == Item1)
+		stopChakraCharge();
+}
+
+void ActionButton::startChakraCharge()
+{
+	if (_isChargingChakra)
+		return;
+
+	auto player = getGameLayer()->currentPlayer;
+	if (!player)
+		return;
+
+	// Charging never interrupts anything: it can only begin from standing or
+	// walking. From walking the hero stops and settles into idle first; from any
+	// other state (a skill, a hit...) the press does nothing.
+	const State state = player->getState();
+	if (state != State::IDLE && state != State::WALK)
+		return;
+
+	_isChargingChakra = true;
+	_chakraChargeHeld = 0.0f;
+
+	// The hero carries the "charging" flag (it makes walking a no-op, and a hit
+	// clears it); the button keeps a reference so it can always clear it again,
+	// even if the hero has been swapped out or removed by then.
+	_chargingHero = player;
+	_chargingHero->retain();
+
+	// The flag goes up BEFORE the hero is stood still. Settling into idle can
+	// look at the held movement keys and immediately walk again; with the flag
+	// already set that walk is ignored instead of undoing the stop.
+	_chargingHero->_isHoldingChakraCharge = true;
+	if (state == State::WALK)
+		_chargingHero->forceIdleStance();
+
+	// No cooldown sweep: this button has no cooldown here, and the freeze
+	// animation would draw one. The rising bar is the feedback.
+	schedule(schedule_selector(ActionButton::updateChakraCharge), 0.016f);
+}
+
+void ActionButton::stopChakraCharge()
+{
+	if (!_isChargingChakra)
+		return;
+
+	_isChargingChakra = false;
+	_chakraChargeHeld = 0.0f;
+	unschedule(schedule_selector(ActionButton::updateChakraCharge));
+
+	if (_chargingHero)
+	{
+		_chargingHero->_isHoldingChakraCharge = false;
+		_chargingHero->release();
+		_chargingHero = nullptr;
+	}
+}
+
+void ActionButton::updateChakraCharge(float dt)
+{
+	// What ends a charge: letting go (handled by stopChakraCharge), using a
+	// skill or a normal attack (the state leaves idle), a hit (hurt() clears the
+	// hero's flag, and normally changes the state too), or the hero changing
+	// under it (a swap, a death).
+	auto player = getGameLayer()->currentPlayer;
+	if (!isDuelMode() || !_isChargingChakra || !player || player != _chargingHero ||
+		!player->_isHoldingChakraCharge || player->getState() != State::IDLE)
+	{
+		stopChakraCharge();
+		return;
+	}
+
+	const uint32_t gain = DuelChakra::chargeGain(_chakraChargeHeld, dt);
+	_chakraChargeHeld += dt;
+	getGameLayer()->duel().addChakra(true, gain);
 }
 
 void ActionButton::click()
@@ -128,6 +221,9 @@ bool ActionButton::isCanClick()
 			// isSkillFinish consider the AttackAction is done or not to prevent the skill invalid release
 			if (_abType == Item1)
 			{
+				if (isDuelMode())
+					return false; // no healing items in the arena
+
 				if (!_delegate->ougisLayer && getTimeCount() == 0 && !_isLock && getGameLayer()->currentPlayer->getState() != State::DEAD)
 				{
 					if (_delegate->offCoin(_cost))
@@ -167,7 +263,7 @@ bool ActionButton::isCanClick()
 			{
 				if (_delegate->getSkillFinish() && _delegate->getOugisEnable(false) && !_isLock && !_delegate->ougisLayer)
 				{
-					_delegate->costCKR(15000, false);
+					_delegate->costCKR(isDuelMode() ? DuelChakra::kSkill4Cost : 15000, false);
 					return true;
 				}
 			}
@@ -175,7 +271,22 @@ bool ActionButton::isCanClick()
 			{
 				if (_delegate->getSkillFinish() && _delegate->getOugisEnable(true) && !_isLock && !_delegate->ougisLayer)
 				{
-					_delegate->costCKR(25000, true);
+					_delegate->costCKR(isDuelMode() ? DuelChakra::kSkill5Cost : 25000, true);
+					return true;
+				}
+			}
+			else if (_abType == AllySwitch1 || _abType == AllySwitch2)
+			{
+				// This is the real click gate; the X drawn on a fallen hero's
+				// button is only the visual side of the same rule.
+				auto player = getGameLayer()->currentPlayer;
+				const auto &roster = getGameLayer()->duel().side(true);
+				const size_t slot = (_abType == AllySwitch1) ? 0 : 1;
+				const bool fallen = slot < roster.bench.size() && roster.hasFallen(roster.bench[slot]);
+				// Not during an ougi cut-in: everything on the field is frozen then,
+				// and swapping heroes under a freeze would resume the wrong things.
+				if (player && player->getState() != State::DEAD && getTimeCount() == 0 && !fallen && !_delegate->ougisLayer)
+				{
 					return true;
 				}
 			}
@@ -414,14 +525,33 @@ void ActionButton::setProgressMark()
 	}
 }
 
+// The two numbers the skill 4/5 dials are drawn from. In the arena both come
+// from the shared pool; skill 5 needs three bars, so its range is squeezed onto
+// the 0..25000 dial the drawing code below expects (empty at 0, full when the
+// skill is castable).
+static void readDialValues(int &ckr, int &ckr2)
+{
+	if (isDuelMode())
+	{
+		const uint32_t pool = getGameLayer()->duel().chakra(true);
+		ckr = static_cast<int>(pool);
+		ckr2 = static_cast<int>((std::min)(pool, DuelChakra::kSkill5Cost) * 25000ull / DuelChakra::kSkill5Cost);
+		return;
+	}
+
+	ckr = getGameLayer()->currentPlayer->getCKR();
+	ckr2 = getGameLayer()->currentPlayer->getCKR2();
+}
+
 void ActionButton::updateProgressMark()
 {
 	// NOTE: Using uint32_t will get wrong results.
 	// uint32_t ckr = 100;
 	// float result = -1    * ckr; //=> 4294967196
 	// float result = -1.0f * ckr; //=> -100
-	int ckr = getGameLayer()->currentPlayer->getCKR();
-	int ckr2 = getGameLayer()->currentPlayer->getCKR2();
+	int ckr;
+	int ckr2;
+	readDialValues(ckr, ckr2);
 
 	if (_abType == OUGIS1)
 	{
@@ -551,7 +681,7 @@ void ActionButton::reset()
 	}
 }
 
-void ActionButton::setLock()
+void ActionButton::setLock(bool showX)
 {
 	if (markSprite)
 	{
@@ -567,6 +697,24 @@ void ActionButton::setLock()
 	{
 		proressblinkMask->setVisible(false);
 	}
+
+	if (showX)
+	{
+		if (cdLabel)
+		{
+			cdLabel->removeFromParent();
+			unschedule(schedule_selector(ActionButton::updateCDLabel));
+		}
+		cdLabel = CCLabelBMFont::create("X", Fonts::Default);
+#if (CC_TARGET_PLATFORM == CC_PLATFORM_LINUX || CC_TARGET_PLATFORM == CC_PLATFORM_WIN32 || CC_TARGET_PLATFORM == CC_PLATFORM_MAC)
+		cdLabel->setScale(0.3f);
+#else
+		cdLabel->setScale(0.4f);
+#endif
+		cdLabel->setPosition(Vec2(getPositionX() + getContentSize().width * getScale() / 2,
+								  getPositionY() + getContentSize().height * getScale() / 2));
+		_delegate->addChild(cdLabel, 200);
+	}
 	_isLock = true;
 }
 
@@ -578,8 +726,18 @@ void ActionButton::unLock()
 		markSprite->setPercentage(0);
 	}
 
-	uint32_t ckr = getGameLayer()->currentPlayer->getCKR();
-	uint32_t ckr2 = getGameLayer()->currentPlayer->getCKR2();
+	// An unlocked button must not keep the "X" (or a stale cooldown number).
+	if (cdLabel && getTimeCount() == 0)
+	{
+		cdLabel->removeFromParent();
+		cdLabel = nullptr;
+	}
+
+	int dialCkr;
+	int dialCkr2;
+	readDialValues(dialCkr, dialCkr2);
+	uint32_t ckr = dialCkr;
+	uint32_t ckr2 = dialCkr2;
 
 	if (_abType == OUGIS1)
 	{
@@ -603,6 +761,18 @@ void ActionButton::unLock()
 	}
 
 	_isLock = false;
+}
+
+void ActionButton::applyMinCooldown(uint32_t minMs)
+{
+	if (getTimeCount() >= minMs)
+		return;
+
+	setTimeCount(minMs);
+
+	// No label on purpose: the window is well under a second, and a "0" would
+	// read as broken. updateCDLabel is what counts the value back down.
+	schedule(schedule_selector(ActionButton::updateCDLabel), 1.0f);
 }
 
 void ActionButton::createFreezeAnimation()

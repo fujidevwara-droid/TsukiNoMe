@@ -64,6 +64,39 @@ function tools.readRecordTimeFromSQL(heroName)
     return KTools:readRecordTimeFromSQL(heroName)
 end
 
+-- Arena (Duels / Arcade) records, per hero.
+function tools.readDuelBestTime(heroName)
+    return KTools:readDuelBestTime(heroName)
+end
+
+function tools.readArcadeBest(heroName)
+    return KTools:readArcadeBest(heroName)
+end
+
+-- Character unlocks. isHeroUnlocked() applies the unlock rules; a hero with no
+-- rule is always unlocked.
+function tools.isHeroUnlocked(heroName)
+    return KTools:isHeroUnlocked(heroName)
+end
+
+function tools.isHeroUnlockEligible(heroName)
+    return KTools:isHeroUnlockEligible(heroName)
+end
+
+function tools.tryUnlockHeroViaPurchase(heroName)
+    return KTools:tryUnlockHeroViaPurchase(heroName)
+end
+
+-- Newline-joined list of what a locked hero needs.
+function tools.getUnlockConditionLines(heroName)
+    return KTools:getUnlockConditionLines(heroName)
+end
+
+-- Greyscale shader on a single node (enable = false restores it).
+function tools.setNodeGrayscale(node, enable)
+    KTools:setNodeGrayscale(node, enable)
+end
+
 function tools.printUserdata(ud)
     if type(ud) == 'userdata' then
         for key, value in pairs(getmetatable(ud)) do

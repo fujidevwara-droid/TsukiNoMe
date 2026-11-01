@@ -221,6 +221,12 @@
     <ClInclude Include="..\Classes\GameMode\Impl\Boss.hpp">
       <Filter>Classes\GameMode\Impl</Filter>
     </ClInclude>
+    <ClInclude Include="..\Classes\GameMode\Impl\Duels.hpp">
+      <Filter>Classes\GameMode\Impl</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\GameMode\Impl\Arcade.hpp">
+      <Filter>Classes\GameMode\Impl</Filter>
+    </ClInclude>
     <ClInclude Include="..\Classes\GameMode\Impl\Clone.hpp">
       <Filter>Classes\GameMode\Impl</Filter>
     </ClInclude>
@@ -243,6 +249,12 @@
       <Filter>Classes\Systems</Filter>
     </ClInclude>
     <ClInclude Include="..\Classes\Systems\CommandSystem.hpp">
+      <Filter>Classes\Systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\Systems\DuelSystem.hpp">
+      <Filter>Classes\Systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\Systems\DuelChakra.hpp">
       <Filter>Classes\Systems</Filter>
     </ClInclude>
     <ClInclude Include="..\Classes\Enums\Audio.hpp">

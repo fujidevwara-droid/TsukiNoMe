@@ -45,6 +45,29 @@ public:
 	Sprite *status_hpMark;
 	ProgressTimer *status_expbar;
 
+	// Duels / Arcade: the enemy duelist's status bar (top right, mirrored).
+	Sprite *enemy_status_bar = nullptr;
+	Sprite *enemy_status_hpbar = nullptr;
+	Sprite *enemy_status_hpMark = nullptr;
+	Menu *enemy_gearMenu = nullptr; // holds the enemy's avatar
+	CCLabelBMFont *enemy_hpLabel = nullptr;
+	// The arena shows each side's shared chakra pool where the level EXP bar
+	// normally is; these two are the enemy's half (the player's are
+	// status_expbar and expLabel).
+	ProgressTimer *enemy_status_expbar = nullptr;
+	CCLabelBMFont *enemyExpLabel = nullptr;
+	Sprite *enemy_gear1 = nullptr; // decorative frames, gear is off in the arena
+	Sprite *enemy_gear2 = nullptr;
+	Sprite *enemy_gear3 = nullptr;
+	// The enemy's two benched heroes, mirroring the player's switch buttons.
+	// Display only: the AI swaps on its own timer.
+	Sprite *enemyAllyIcon1 = nullptr;
+	Sprite *enemyAllyIcon2 = nullptr;
+	// The player's swap buttons, one per bench slot.
+	ActionButton *allySwitch1Button = nullptr;
+	ActionButton *allySwitch2Button = nullptr;
+	bool _allySwitchTouchPriorityFixed = false;
+
 	ActionButton *nAttackButton;
 	ActionButton *skill1Button;
 	ActionButton *skill2Button;
@@ -87,6 +110,19 @@ public:
 	SpriteBatchNode *uiBatch;
 
 	void setHPLose(float percent);
+	void setEnemyHPLose(float percent);
+	// Redraws one side's chakra bar and its "N BARS" text from the pool.
+	void setDuelChakraBarUI(bool playerSide);
+
+	// Duels / Arcade (called by DuelSystem)
+	// A player swap or forced switch happened on `slot`: that button now shows
+	// the hero that just left the field. startCooldown is false for a forced
+	// switch (death), where the slot is locked out instead.
+	void onDuelPlayerSwapped(int slot, const string &benchedKey, bool startCooldown);
+	// The enemy duelist changed: new avatar, the slot icon, and its HP.
+	void onDuelEnemySwapped(int slot, const string &nowOnField, const string &benchedKey, float hpPercent);
+	void refreshEnemyAvatar(const string &charName);
+	void updateAllySwitchButtons(float dt);
 	void setCKRLose(bool isCRK2);
 	void setEXPLose();
 

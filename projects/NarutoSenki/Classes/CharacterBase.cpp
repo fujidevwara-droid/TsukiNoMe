@@ -5,7 +5,14 @@
 #include "GameMode/GameModeImpl.h"
 #include "MyUtils/CCShake.h"
 #include "Systems/CommandSystem.hpp"
+#include "Systems/DuelSystem.hpp"
 #include "Utils/Debug/UnitDebug.hpp"
+
+// Chakra earned from combat is scaled down in the arena (see DuelChakra).
+static uint32_t combatChakra(uint32_t normalGain)
+{
+	return isDuelMode() ? DuelChakra::combatGain(normalGain) : normalGain;
+}
 
 CharacterBase::CharacterBase()
 {
@@ -287,13 +294,39 @@ void CharacterBase::update(float dt)
 		_shadow->setPosition(Vec2(getPositionX(), _originY ? _originY : getPositionY()));
 	}
 
+	// Every movement that is not WALK (knockback, launches, dashes, jumps) sets
+	// the position directly and knows nothing about the arena walls. Catch the
+	// overshoot once per frame: put the hero back on the wall and turn it to
+	// face away from it. WALK is clamped further down.
+	if (isDuelMode() && _state != State::WALK && _state != State::DEAD)
+	{
+		const auto arena = getGameLayer()->arenaBounds();
+		const float x = getPositionX();
+		if (x < arena.minX)
+		{
+			setPositionX(arena.minX);
+			if (_isFlipped)
+				setCharFlip();
+		}
+		else if (x > arena.maxX)
+		{
+			setPositionX(arena.maxX);
+			if (!_isFlipped)
+				setCharFlip();
+		}
+	}
+
 	if (!_isControlled && _state != State::DEAD)
 	{
 		if (isPlayerOrCom())
 		{
 			if (isNotGuardian())
 			{
-				if (isKonohaGroup() && getPositionX() <= 11 * 32)
+				if (isDuelMode())
+				{
+					_isHealing = false; // there is no base to heal at in the arena
+				}
+				else if (isKonohaGroup() && getPositionX() <= 11 * 32)
 				{
 					_isHealing = true;
 					if (getHpPercent() < 1.0f)
@@ -358,8 +391,16 @@ void CharacterBase::update(float dt)
 			}
 		}
 
-		float posX = MIN(getGameLayer()->currentMap->getMapSize().width * getGameLayer()->currentMap->getTileSize().width,
-			MAX(0, _desiredPosition.x));
+		float mapMinX = 0;
+		float mapMaxX = getGameLayer()->currentMap->getMapSize().width * getGameLayer()->currentMap->getTileSize().width;
+		if (isDuelMode())
+		{
+			const auto arena = getGameLayer()->arenaBounds();
+			mapMinX = arena.minX;
+			mapMaxX = arena.maxX;
+		}
+
+		float posX = MIN(mapMaxX, MAX(mapMinX, _desiredPosition.x));
 
 		// map height		: 10
 		// backgroud height	: 4.5
@@ -391,6 +432,11 @@ void CharacterBase::updateHpBarPosition(float dt)
 
 void CharacterBase::acceptAttack(Ref* object)
 {
+	// A benched hero is invulnerable. It can still be registered as a
+	// notification observer while frozen, so refuse the hit here too.
+	if (_isBenched)
+		return;
+
 	auto attacker = (CharacterBase*)object;
 	bool isCannotMiss = false;
 
@@ -1370,7 +1416,7 @@ void CharacterBase::setDamage(CharacterBase* attacker, const string& effectType,
 				boundValue = 0;
 		}
 
-		_master->increaseAllCkrs(boundValue);
+		_master->increaseAllCkrs(combatChakra(boundValue));
 	}
 	else if (!_isControlled)
 	{
@@ -1404,7 +1450,7 @@ void CharacterBase::setDamage(CharacterBase* attacker, const string& effectType,
 			isGainable = false;
 
 		if (isGainable)
-			increaseAllCkrs(boundValue);
+			increaseAllCkrs(combatChakra(boundValue));
 	}
 
 	if (isPlayerOrCom() && !currentAttacker->_isControlled)
@@ -1424,7 +1470,7 @@ void CharacterBase::setDamage(CharacterBase* attacker, const string& effectType,
 		}
 
 		if (gainValue != 0)
-			currentAttacker->increaseAllCkrs(gainValue);
+			currentAttacker->increaseAllCkrs(combatChakra(gainValue));
 	}
 
 	if (isPlayer() || (isNotTower() &&
@@ -1588,6 +1634,10 @@ void CharacterBase::setSkillEffect(const string& type)
 void CharacterBase::setItem(ABType type)
 {
 	if (_isControlled)
+		return;
+
+	// No ramen in the arena: that button charges chakra instead.
+	if (isDuelMode())
 		return;
 
 	if (getName() == HeroEnum::Kankuro ||
@@ -3706,19 +3756,27 @@ void CharacterBase::attack(ABType type)
 		// so they still have to be charged here.
 		if ((isNotPlayer() || _isAI) && !(isActivePlayerBody() && !_isAI))
 		{
-			uint32_t ckr = getCKR();
-			if (ckr >= 15000)
+			if (isDuelMode())
 			{
-				ckr -= 15000;
-				setCKR(ckr);
+				auto &duel = getGameLayer()->duel();
+				duel.spendChakra(duel.isPlayerSide(this), DuelChakra::kSkill4Cost);
 			}
 			else
 			{
-				setCKR(0);
-			}
-			if (ckr < 15000)
-			{
-				_isCanOugis1 = false;
+				uint32_t ckr = getCKR();
+				if (ckr >= 15000)
+				{
+					ckr -= 15000;
+					setCKR(ckr);
+				}
+				else
+				{
+					setCKR(0);
+				}
+				if (ckr < 15000)
+				{
+					_isCanOugis1 = false;
+				}
 			}
 		}
 
@@ -3731,19 +3789,27 @@ void CharacterBase::attack(ABType type)
 	case OUGIS2:
 		if ((isNotPlayer() || _isAI) && !(isActivePlayerBody() && !_isAI))
 		{
-			uint32_t ckr2 = getCKR2();
-			if (ckr2 >= 25000)
+			if (isDuelMode())
 			{
-				ckr2 -= 25000;
-				setCKR2(ckr2);
+				auto &duel = getGameLayer()->duel();
+				duel.spendChakra(duel.isPlayerSide(this), DuelChakra::kSkill5Cost);
 			}
 			else
 			{
-				setCKR2(0);
-			}
-			if (ckr2 < 25000)
-			{
-				_isCanOugis2 = false;
+				uint32_t ckr2 = getCKR2();
+				if (ckr2 >= 25000)
+				{
+					ckr2 -= 25000;
+					setCKR2(ckr2);
+				}
+				else
+				{
+					setCKR2(0);
+				}
+				if (ckr2 < 25000)
+				{
+					_isCanOugis2 = false;
+				}
 			}
 		}
 
@@ -3956,6 +4022,11 @@ void CharacterBase::idle()
 
 void CharacterBase::walk(Vec2 direction)
 {
+	// Holding the ramen button in the arena: standing still is the one thing
+	// charging asks for. (The held joystick keeps asking; it is just ignored.)
+	if (_isHoldingChakraCharge)
+		return;
+
 	// Only truly AI-driven non-player bodies may walk out of a basic attack;
 	// a possessed body the human is piloting must finish/hold it like a player.
 	const bool isAiRoleBody = isNotPlayer() && !isActivePlayerBody();
@@ -4023,6 +4094,11 @@ void CharacterBase::walk(Vec2 direction)
 
 bool CharacterBase::hurt()
 {
+	// A hit ends a chakra charge even if the hero is armored and would not
+	// flinch; the button notices the flag change on its next tick.
+	_isHoldingChakraCharge = false;
+	_isAIChargingChakra = false; // the AI loop notices and stops
+
 	if (_state != State::SATTACK &&
 		_state != State::JUMP &&
 		_state != State::OATTACK &&
@@ -4571,6 +4647,143 @@ void CharacterBase::checkActionFinish(float dt)
 	}
 }
 
+void CharacterBase::beginDeparture()
+{
+	if (_isBenched || _state == State::DEAD)
+		return;
+
+	if (isPlayer())
+		setRole(Role::Com);
+	_isControlled = false;
+	_isAI = false;
+	stopAIChargeChakra();
+	_isHoldingChakraCharge = false;
+
+	// From here on it ignores hits (acceptAttack) and AI (doAI/setAI), exactly
+	// like a benched hero - it just has not been hidden or frozen yet.
+	_isBenched = true;
+}
+
+// The units that go away when their owner is benched: the ones that need their
+// summoner in order to act. What sets them apart in the code is that they drive
+// the owner - they trigger the owner's skills (_master->attack(...)) and hand
+// the owner's action back in dealloc() (_master->setActionResume()) - so with
+// the owner gone they have nothing left to do and would leave its buff dangling.
+// Units that act on their own (Kurama, Saso, Sanshouuo, Mask, DogWall...) keep
+// running, as do Mons and projectiles. To change the set, edit this list.
+static bool isMasterControlledUnit(CharacterBase *c)
+{
+	const string &name = c->getName();
+	return name == SummonEnum::Akamaru || name == KugutsuEnum::Parents || name == KugutsuEnum::Karasu;
+}
+
+void CharacterBase::killOwnedSummons()
+{
+	// Units are found two ways: puppets are tracked in the owner's monster array,
+	// summoned animals carry the owner as their master. dead() can change both lists, so
+	// collect first.
+	vector<CharacterBase *> targets;
+	auto consider = [&](CharacterBase *c)
+	{
+		if (!c || c == this || c->getState() == State::DEAD || !isMasterControlledUnit(c))
+			return;
+		if (std::find(targets.begin(), targets.end(), c) == targets.end())
+			targets.push_back(c);
+	};
+
+	for (auto mo : _monsterArray)
+		consider(mo);
+	for (auto c : getGameLayer()->_CharacterArray)
+	{
+		if (c->getMaster() == this || c->getSecMaster() == this)
+			consider(c);
+	}
+
+	for (auto c : targets)
+	{
+		// The timed expiry (removeClone) is what normally ends a summon, so
+		// cancel it and take the same exit now.
+		c->unschedule(schedule_selector(CharacterBase::removeClone));
+		c->dead();
+		std::erase(_monsterArray, c);
+	}
+}
+
+void CharacterBase::forceIdleStance()
+{
+	if (_state == State::DEAD)
+		return;
+
+	_velocity = Vec2(0, 0);
+	if (_state != State::IDLE)
+		idle();
+
+	stopAllActions();
+	runAction(_idleAction);
+}
+
+void CharacterBase::enterBench()
+{
+	if (_state == State::DEAD)
+		return;
+
+	// Some characters keep a buff/stance that schedules its own repeating side
+	// effects while active. setActionResume() is the per-character "end my
+	// current buff cleanly" hook (a no-op for everyone else).
+	setActionResume();
+
+	// Whatever side it is on, a benched hero is never player-controlled.
+	if (isPlayer())
+		setRole(Role::Com);
+	_isControlled = false;
+	_isAI = false;
+	_isBenched = true;
+
+	// Settle into idle first (clears state, knockback, stickers), then freeze.
+	if (_state != State::IDLE)
+		idle();
+	unschedule(schedule_selector(CharacterBase::setAI));
+	unschedule(schedule_selector(CharacterBase::stopMove));
+	stopAIChargeChakra();
+
+	setVisible(false);
+	if (_shadow)
+		_shadow->setVisible(false);
+
+	// Stop every scheduler tick and action. Re-entering a scene resumes all
+	// nodes again, so this freeze is best effort: the guarantees that hold
+	// regardless are _isBenched itself (no AI, no damage) plus the hero being
+	// hidden and absent from GameLayer::_CharacterArray.
+	pauseSchedulerAndActions();
+
+	// Lets the minimap icon (matched by charId) hide itself.
+	CCNotificationCenter::sharedNotificationCenter()->postNotification("updateMap", this);
+}
+
+void CharacterBase::leaveBench(const Vec2 &pos, bool flipped)
+{
+	if (!_isBenched)
+		return;
+
+	_isBenched = false;
+	resumeSchedulerAndActions();
+
+	setPosition(pos);
+	_isFlipped = flipped;
+	setFlipX(flipped);
+	setVisible(true);
+
+	if (_shadow)
+	{
+		_shadow->setVisible(true);
+		_shadow->setPosition(pos);
+	}
+	if (getParent())
+		getGameLayer()->reorderChild(this, -getPositionY());
+
+	CCNotificationCenter::sharedNotificationCenter()->postNotification("updateMap", this);
+}
+
 void CharacterBase::dealloc()
 {
 }
@@ -4586,6 +4799,9 @@ void CharacterBase::setAI(float dt)
 
 void CharacterBase::doAI()
 {
+	if (_isBenched)
+		return;
+
 	_isAI = true;
 	schedule(schedule_selector(CharacterBase::setAI), 0.1f);
 }
@@ -4655,7 +4871,8 @@ CharacterBase::findEnemyBy(const vector<T*>& list, int searchRange, bool masterR
 				distance = sp.getLength();
 			}
 
-			if (abs(sp.x) < (searchRange ? searchRange : kAttackRange))
+			// The arena is one screen wide, so the other duelist is always in reach.
+			if (abs(sp.x) < (searchRange ? searchRange : kAttackRange) || isDuelMode())
 			{
 				if (target->_isTaunt)
 				{
@@ -4726,7 +4943,7 @@ CharacterBase::findEnemy2By(const vector<T*>& list)
 
 		sp = target->getPosition() - getPosition();
 		distance = sp.getLength();
-		if (abs(sp.x) < kAttackRange)
+		if (abs(sp.x) < kAttackRange || isDuelMode())
 		{
 			if (target->isNotClone() && target->isNotSummon())
 			{
@@ -4911,7 +5128,22 @@ void CharacterBase::stepOn()
 {
 	Vec2 moveDirection;
 
-	if (isKonohaGroup())
+	if (isDuelMode())
+	{
+		// Nothing to march towards in a closed arena: patrol between the walls
+		// instead of walking into one forever.
+		const auto arena = getGameLayer()->arenaBounds();
+		if (_duelWanderDir == 0)
+			_duelWanderDir = isKonohaGroup() ? 1 : -1;
+
+		if (_duelWanderDir > 0 && getPositionX() >= arena.maxX - 4)
+			_duelWanderDir = -1;
+		else if (_duelWanderDir < 0 && getPositionX() <= arena.minX + 4)
+			_duelWanderDir = 1;
+
+		moveDirection = Vec2(static_cast<float>(_duelWanderDir), 0);
+	}
+	else if (isKonohaGroup())
 		moveDirection = Vec2(1, 0).getNormalized();
 	else
 		moveDirection = Vec2(-1, 0).getNormalized();
@@ -4931,14 +5163,30 @@ bool CharacterBase::stepBack()
 	else
 		moveDirection = Vec2(1, 0).getNormalized();
 
-	if (getPositionX() >= getGameLayer()->currentMap->getTileSize().width * 2 &&
-		getPositionX() <= (getGameLayer()->currentMap->getMapSize().width - 2) * getGameLayer()->currentMap->getTileSize().width)
+	// In the arena "room to retreat" is measured from the arena walls.
+	const float tile = getGameLayer()->currentMap->getTileSize().width;
+	float minX = tile * 2;
+	float maxX = (getGameLayer()->currentMap->getMapSize().width - 2) * tile;
+	if (isDuelMode())
+	{
+		const auto arena = getGameLayer()->arenaBounds();
+		minX = arena.minX + tile;
+		maxX = arena.maxX - tile;
+	}
+
+	if (getPositionX() >= minX && getPositionX() <= maxX)
 	{
 		walk(moveDirection);
 		return true;
 	}
 	else
 	{
+		// Backed into a wall in the arena: turn and fight instead of freezing.
+		if (isDuelMode())
+		{
+			walk(Vec2(-moveDirection.x, 0));
+			return true;
+		}
 		return false;
 	}
 }
@@ -5033,6 +5281,15 @@ bool CharacterBase::stepBack2()
 // [For AI] 检查角色是否需要使用【拉面】回血，若血量低于界限，则返回true
 bool CharacterBase::checkRetri()
 {
+	if (isDuelMode())
+	{
+		// No ramen healing here. This runs on every AI tick, so it is a cheap
+		// place to let the AI charge chakra whenever it happens to be idle,
+		// without touching every hero's own AI.
+		tryAIChargeChakra();
+		return false;
+	}
+
 	if (_isCanItem1 && getCoin() >= 50)
 	{
 		if (getGameLayer()->_isHardCoreGame)
@@ -5207,6 +5464,16 @@ void CharacterBase::enableSkill3(float dt)
 
 void CharacterBase::increaseAllCkrs(uint32_t value, bool enableLv2, bool enableLv4)
 {
+	// The arena has one pool per side. Whoever earns the chakra (this hero, a
+	// master it belongs to, an attacker) feeds the pool of its own side, and
+	// the level gates do not apply because duel heroes start at the top level.
+	if (isDuelMode())
+	{
+		auto &duel = getGameLayer()->duel();
+		duel.addChakra(duel.isPlayerSide(this), value);
+		return;
+	}
+
 	if (_level >= 2 && enableLv2)
 	{
 		uint32_t ckr = MIN(getCKR() + value, 45000);
@@ -5230,6 +5497,82 @@ void CharacterBase::increaseAllCkrs(uint32_t value, bool enableLv2, bool enableL
 		if (isPlayer() || isActivePlayerBody())
 			getGameLayer()->setCKRLose(true);
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Arena AI charge: the AI's version of a player holding the ramen button.
+// ---------------------------------------------------------------------------
+
+void CharacterBase::tryAIChargeChakra()
+{
+	if (!_isAI || _isAIChargingChakra || _isBenched)
+		return;
+
+	// One decision every kAIChargeAttemptSeconds of match time. (Total match
+	// seconds, not the clock's seconds field, which wraps every minute.)
+	const uint32_t now = getGameLayer()->getTotalTime();
+	if (now < _nextChakraChargeAttemptSecond)
+		return;
+	_nextChakraChargeAttemptSecond = now + kAIChargeAttemptSeconds;
+
+	// A side that already holds plenty has no reason to stand around charging.
+	auto &duel = getGameLayer()->duel();
+	if (DuelChakra::wholeBars(duel.chakra(duel.isPlayerSide(this))) > kAIChargeMaxBars)
+		return;
+
+	setRand();
+	if (random(100) >= kAIChargeChancePercent)
+		return;
+
+	// A successful roll forces the charge: a walking AI stops and stands. It is
+	// never forced out of a skill, an attack, a hit or any other action; that
+	// decision is simply skipped.
+	const State state = getState();
+	if (state != State::IDLE && state != State::WALK)
+		return;
+
+	_isAIChargingChakra = true;
+	_aiChakraChargeHeld = 0.0f;
+
+	// While charging the AI does not act (Hero::setAI holds it), so it never
+	// starts a skill or an attack in the middle of a charge by itself. The one
+	// exception is decided here, once per charge: a small chance that it gives
+	// up part-way through and goes back to fighting, at a random point.
+	_aiChargeSelfInterrupts = random(100) < kAIChargeSelfInterruptPercent;
+	_aiChargeInterruptAt = DuelChakra::kChargeSeconds * (0.2f + random(60) / 100.0f); // 20%..80% of a full hold
+
+	forceIdleStance();
+	schedule(schedule_selector(CharacterBase::updateAIChargeChakra), 0.1f);
+}
+
+void CharacterBase::updateAIChargeChakra(float dt)
+{
+	// A charge runs for one full hold (DuelChakra::kChargeSeconds) at most, and
+	// ends sooner when the pool is full or something breaks idle. A hit clears
+	// the flag in hurt() (and changes the state too).
+	auto &duel = getGameLayer()->duel();
+	const bool playerSide = duel.isPlayerSide(this);
+	if (!isDuelMode() || !_isAIChargingChakra || _isBenched || getState() != State::IDLE ||
+		_aiChakraChargeHeld >= DuelChakra::kChargeSeconds || duel.chakra(playerSide) >= DuelChakra::kMax ||
+		(_aiChargeSelfInterrupts && _aiChakraChargeHeld >= _aiChargeInterruptAt))
+	{
+		stopAIChargeChakra();
+		return;
+	}
+
+	const uint32_t gain = DuelChakra::chargeGain(_aiChakraChargeHeld, dt);
+	_aiChakraChargeHeld += dt;
+	duel.addChakra(playerSide, gain);
+}
+
+void CharacterBase::stopAIChargeChakra()
+{
+	// Always unschedule: hurt() may already have cleared the flag, and the
+	// update loop must not outlive it.
+	_isAIChargingChakra = false;
+	_aiChakraChargeHeld = 0.0f;
+	_aiChargeSelfInterrupts = false;
+	unschedule(schedule_selector(CharacterBase::updateAIChargeChakra));
 }
 
 void CharacterBase::increaseHpAndUpdateUI(uint32_t value)

@@ -122,12 +122,21 @@ function SkillLayer:initInterface()
     bgSprite:setAnchorPoint(0, 0)
     self:addChild(bgSprite, -5)
 
+    -- The arena modes keep their own records instead of regular win totals.
+    local mode = self._selectLayer and self._selectLayer.mode
+    local isDuels = mode == GameMode.Duels
+    local isArcade = mode == GameMode.Arcade
+
     local winNum = tools.readWinNumFromSQL(self.selectHero)
 
     local rank_src
     local isBlink = false
     local skillbg_src
-    if winNum >= 300 then
+    if isDuels or isArcade then
+        -- The rank tier reflects regular win counts, which do not apply here.
+        skillbg_src = 'skill_bg1.png'
+        rank_src = 'rank_c.png'
+    elseif winNum >= 300 then
         skillbg_src = 'skill_bg6.png'
         rank_src = 'rank_sss.png'
         isBlink = true
@@ -249,9 +258,19 @@ function SkillLayer:initInterface()
                               skill_bg:getContentSize().height / 2 + 74)
     self:addChild(detailBG1, 5)
 
-    local recordTime = tools.readRecordTimeFromSQL(self.selectHero)
+    local recordTime
+    if isDuels then
+        recordTime = tools.readDuelBestTime(self.selectHero)
+    elseif isArcade then
+        recordTime = '' -- Arcade has no time record; the slot shows the stage record
+    else
+        recordTime = tools.readRecordTimeFromSQL(self.selectHero)
+    end
+
     local bestLabel
-    if recordTime == '' then
+    if isArcade then
+        bestLabel = CCLabelBMFont:create('RECORD:', 'Fonts/1.fnt')
+    elseif recordTime == '' then
         bestLabel = CCLabelBMFont:create('00:00:00', 'Fonts/1.fnt')
     else
         bestLabel = CCLabelBMFont:create(recordTime, 'Fonts/1.fnt')
@@ -272,7 +291,16 @@ function SkillLayer:initInterface()
                               skill_bg:getContentSize().height / 2 + 74)
     self:addChild(detailBG2, 5)
 
-    local recordLabel = CCLabelBMFont:create(winNum .. ' bonds', 'Fonts/1.fnt')
+    local recordLabelText
+    if isDuels then
+        recordLabelText = 'NONE'
+    elseif isArcade then
+        recordLabelText = 'Stage ' .. tools.readArcadeBest(self.selectHero)
+    else
+        recordLabelText = winNum .. ' bonds'
+    end
+
+    local recordLabel = CCLabelBMFont:create(recordLabelText, 'Fonts/1.fnt')
     recordLabel:setScale(0.3)
     recordLabel:setAnchorPoint(0, 0)
     recordLabel:setPosition(detailBG2:getPositionX() + 12,
