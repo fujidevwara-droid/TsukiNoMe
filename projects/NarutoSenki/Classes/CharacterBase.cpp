@@ -534,6 +534,14 @@ void CharacterBase::acceptAttack(Ref* object)
 							attacker->_isCatchOne = true;
 							if (attacker->_master)
 							{
+								// Arena (either side's Ino): the victim's side brings in its
+								// next hero instead of losing the match's control, and the
+								// possessed hero fights for Ino's team. With nobody to
+								// bring in, the possession simply fails.
+								if (isDuelMode() &&
+									!getGameLayer()->duel().beginPossession(static_cast<Hero *>(this), static_cast<Hero *>(attacker->_master)))
+									return;
+
 								_isControlled = true;
 								_controller = attacker->_master;
 
@@ -4677,6 +4685,23 @@ static bool isMasterControlledUnit(CharacterBase *c)
 	return name == SummonEnum::Akamaru || name == KugutsuEnum::Parents || name == KugutsuEnum::Karasu;
 }
 
+void CharacterBase::refreshTeamBarColor()
+{
+	if (!_hpBar || isPlayer())
+		return;
+
+	if (getGroup() != getGameLayer()->playerGroup)
+		_hpBar->changeBar("hp_bar_r.png");
+	else if (isCom())
+		_hpBar->changeBar("hp_bar_b.png");
+}
+
+void CharacterBase::releaseArenaCaptive()
+{
+	if (isDuelMode())
+		getGameLayer()->duel().releaseCapturedBy(static_cast<Hero *>(this));
+}
+
 void CharacterBase::killOwnedSummons()
 {
 	// Units are found two ways: puppets are tracked in the owner's monster array,
@@ -5283,10 +5308,8 @@ bool CharacterBase::checkRetri()
 {
 	if (isDuelMode())
 	{
-		// No ramen healing here. This runs on every AI tick, so it is a cheap
-		// place to let the AI charge chakra whenever it happens to be idle,
-		// without touching every hero's own AI.
-		tryAIChargeChakra();
+		// No ramen healing here, so never retreat to heal. (The AI's chakra
+		// charging is decided in Hero::setAI, which every hero runs each tick.)
 		return false;
 	}
 
@@ -5505,32 +5528,59 @@ void CharacterBase::increaseAllCkrs(uint32_t value, bool enableLv2, bool enableL
 
 void CharacterBase::tryAIChargeChakra()
 {
-	if (!_isAI || _isAIChargingChakra || _isBenched)
+	if (!isDuelMode() || !_isAI || _isAIChargingChakra || _isBenched)
 		return;
 
-	// One decision every kAIChargeAttemptSeconds of match time. (Total match
-	// seconds, not the clock's seconds field, which wraps every minute.)
+	// Called on every AI tick. Times are total match seconds, not the clock's
+	// seconds field, which wraps every minute.
 	const uint32_t now = getGameLayer()->getTotalTime();
-	if (now < _nextChakraChargeAttemptSecond)
-		return;
-	_nextChakraChargeAttemptSecond = now + kAIChargeAttemptSeconds;
-
-	// A side that already holds plenty has no reason to stand around charging.
 	auto &duel = getGameLayer()->duel();
-	if (DuelChakra::wholeBars(duel.chakra(duel.isPlayerSide(this))) > kAIChargeMaxBars)
-		return;
-
-	setRand();
-	if (random(100) >= kAIChargeChancePercent)
-		return;
-
-	// A successful roll forces the charge: a walking AI stops and stands. It is
-	// never forced out of a skill, an attack, a hit or any other action; that
-	// decision is simply skipped.
+	const bool poolLow = DuelChakra::wholeBars(duel.chakra(duel.isPlayerSide(this))) <= kAIChargeMaxBars;
 	const State state = getState();
-	if (state != State::IDLE && state != State::WALK)
-		return;
+	const bool canStand = state == State::IDLE || state == State::WALK;
 
+	if (_aiChargeDue)
+	{
+		// A successful roll is only waiting for a free moment. Give up if the
+		// pool filled up in the meantime or it has waited too long; the next
+		// roll comes at the usual time either way.
+		if (!poolLow || now > _aiChargeDueUntil)
+			_aiChargeDue = false;
+		else if (!canStand)
+			return;
+	}
+	else
+	{
+		// The first roll comes one interval after the hero first runs this, so
+		// nobody charges in the opening second.
+		if (_nextChakraChargeAttemptSecond == 0)
+			_nextChakraChargeAttemptSecond = now + kAIChargeAttemptSeconds;
+		if (now < _nextChakraChargeAttemptSecond)
+			return;
+
+		// One roll every interval, whatever the outcome: a miss, a pool that is
+		// already full enough, or a hero that is busy just means the next try is
+		// one interval later.
+		_nextChakraChargeAttemptSecond = now + kAIChargeAttemptSeconds;
+		if (!poolLow)
+			return;
+
+		setRand();
+		if (random(100) >= kAIChargeChancePercent)
+			return;
+
+		// The roll passed. If the hero is mid-skill or mid-hit it is not
+		// interrupted; the charge waits for the first free moment instead of
+		// throwing the roll away.
+		if (!canStand)
+		{
+			_aiChargeDue = true;
+			_aiChargeDueUntil = now + kAIChargeWaitSeconds;
+			return;
+		}
+	}
+
+	_aiChargeDue = false;
 	_isAIChargingChakra = true;
 	_aiChakraChargeHeld = 0.0f;
 

@@ -605,6 +605,12 @@ void GameLayer::updateHudSkillButtons()
 	_hudLayer->updateSkillButtons();
 }
 
+void GameLayer::onHeroTransformed(CharacterBase *hero)
+{
+	if (isDuelMode() && _hudLayer)
+		_duel->onHeroRenamed(static_cast<Hero *>(hero));
+}
+
 void GameLayer::setHPLose(float percent)
 {
 	_hudLayer->setHPLose(percent);

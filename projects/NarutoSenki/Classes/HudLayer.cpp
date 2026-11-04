@@ -894,7 +894,10 @@ void HudLayer::updateAllySwitchButtons(float dt)
 		if (!button)
 			continue;
 
-		const bool fallen = i < roster.bench.size() && roster.hasFallen(roster.bench[i]);
+		// A slot is closed for good when its hero has fallen, and for as long as it
+		// is held by an Ino's possession.
+		const bool fallen = i < roster.bench.size() &&
+							(roster.hasFallen(roster.bench[i]) || roster.isUnavailable(roster.bench[i]));
 		if (fallen)
 		{
 			if (!button->_isLock)

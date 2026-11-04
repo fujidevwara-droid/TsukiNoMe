@@ -189,6 +189,9 @@ public:
 	void scheduleFollowingPause(SEL_SCHEDULE selector, float interval, unsigned int repeat);
 
 	void updateHudSkillButtons();
+	// A hero that is not the human's changed form (see Hero::setID). The human's
+	// own transforms go through updateHudSkillButtons() instead.
+	void onHeroTransformed(CharacterBase *hero);
 	void setHPLose(float percent);
 	void setEnemyHPLose(float percent);
 	void setCKRLose(bool isCRK2);

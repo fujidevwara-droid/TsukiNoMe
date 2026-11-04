@@ -36,15 +36,20 @@ public:
 		// the hero that is currently benched there (or the one that fell).
 		std::vector<std::string> bench;
 		std::unordered_set<std::string> fallen;
+		// Alive but not usable right now: a hero Ino has possessed (it is fighting
+		// for the other side) or an Ino left standing as a husk. Neither can be
+		// swapped to, and neither counts as the next hero in line.
+		std::unordered_set<std::string> unavailable;
 		std::unordered_map<std::string, Hero *> heroes;
 
 		bool hasFallen(const std::string &key) const { return fallen.count(key) > 0; }
+		bool isUnavailable(const std::string &key) const { return unavailable.count(key) > 0; }
 
 		int firstLivingSlot() const
 		{
 			for (size_t i = 0; i < bench.size(); ++i)
 			{
-				if (!hasFallen(bench[i]))
+				if (!hasFallen(bench[i]) && !isUnavailable(bench[i]))
 					return static_cast<int>(i);
 			}
 			return -1;
@@ -150,6 +155,17 @@ public:
 			});
 	}
 
+	// The enemy hero in play changed form: its portrait in the HUD has to follow.
+	// (The human's own portrait is refreshed by Hero::setID through
+	// updateHudSkillButtons; nothing else showed the enemy's name.)
+	void onHeroRenamed(Hero *hero)
+	{
+		if (!hero || hero != activeHero(false))
+			return;
+		if (auto hud = _owner->getHudLayer())
+			hud->refreshEnemyAvatar(hero->getName());
+	}
+
 	// ---- shared chakra pool ----------------------------------------------
 	// One pool per side (see Systems/DuelChakra.hpp). Every hero of a side
 	// reads and spends the same pool, so a swap never changes what is ready.
@@ -167,7 +183,16 @@ public:
 		// The ougis flags are what the AI (and some skills) look at, so every
 		// hero of the side - bench included - must agree with the pool.
 		for (auto &entry : side(playerSide).heroes)
-			syncFlags(entry.second, playerSide);
+		{
+			if (!isCaptive(entry.second))
+				syncFlags(entry.second, playerSide);
+		}
+		// A possessed hero fights for the other side and draws on that side's pool.
+		for (auto &capture : _captures)
+		{
+			if (isRosterMember(true, capture.captive) != playerSide)
+				syncFlags(capture.captive, playerSide);
+		}
 
 		if (auto hud = _owner->getHudLayer())
 		{
@@ -216,7 +241,8 @@ public:
 		for (auto &entry : side(playerSide).heroes)
 		{
 			Hero *hero = entry.second;
-			if (hero && !hero->_isBenched && hero->getState() != State::DEAD)
+			if (hero && hero != husk(playerSide) && !isCaptive(hero) && !hero->_isBenched &&
+				hero->getState() != State::DEAD)
 				return hero;
 		}
 		return nullptr;
@@ -235,8 +261,21 @@ public:
 	void swapPlayer(int slot)
 	{
 		Side &s = side(true);
-		auto *outgoing = static_cast<Hero *>(_owner->currentPlayer);
-		if (slot < 0 || slot >= static_cast<int>(s.bench.size()) || !outgoing || outgoing->getState() == State::DEAD)
+		auto *controlled = static_cast<Hero *>(_owner->currentPlayer);
+		if (slot < 0 || slot >= static_cast<int>(s.bench.size()) || !controlled || controlled->getState() == State::DEAD)
+			return;
+
+		// While steering a hero that the human's own Ino possessed, the hero in play
+		// is Ino (she stands by, defenceless). Swapping then takes her off the field
+		// the way an enemy Ino's swap does: she stays as a husk, what she possessed
+		// hides, and the ally comes in where the human was looking.
+		Hero *outgoing = controlled;
+		for (const auto &capture : _captures)
+		{
+			if (capture.captive == controlled && isRosterMember(true, capture.captor))
+				outgoing = capture.captor;
+		}
+		if (outgoing->getState() == State::DEAD)
 			return;
 
 		const std::string incomingKey = s.bench[slot];
@@ -245,9 +284,13 @@ public:
 			return;
 
 		const std::string outgoingKey = keyOf(outgoing, true);
-		// Order matters: activate() reads where the outgoing hero stands.
-		activate(incoming, outgoing->getPosition(), outgoing->_isFlipped, true);
-		bench(outgoing);
+		// Order matters: activate() reads where the hero it replaces stands.
+		activate(incoming, controlled->getPosition(), controlled->_isFlipped, true);
+
+		if (isPossessing(outgoing))
+			makeHusk(true, outgoing, outgoingKey);
+		else
+			bench(outgoing);
 
 		s.bench[slot] = outgoingKey;
 		refreshPlayerHud(incoming, incomingKey);
@@ -270,7 +313,14 @@ public:
 
 		const std::string outgoingKey = keyOf(outgoing, false);
 		activate(incoming, outgoing->getPosition(), outgoing->_isFlipped, false);
-		bench(outgoing);
+
+		// An Ino that is mid-possession cannot simply vanish: she stays on the
+		// field, still hittable, as a husk until the possession ends or she dies.
+		// Only what she possessed disappears.
+		if (isPossessing(outgoing))
+			makeHusk(false, outgoing, outgoingKey);
+		else
+			bench(outgoing);
 
 		s.bench[slot] = outgoingKey;
 		showEnemy(slot, incomingKey, outgoingKey, incoming);
@@ -291,7 +341,7 @@ public:
 		std::vector<int> open;
 		for (size_t i = 0; i < s.bench.size(); ++i)
 		{
-			if (!s.hasFallen(s.bench[i]))
+			if (!s.hasFallen(s.bench[i]) && !s.isUnavailable(s.bench[i]))
 				open.push_back(static_cast<int>(i));
 		}
 		if (open.empty())
@@ -327,6 +377,126 @@ public:
 
 		if (_departing.empty())
 			_owner->unschedule(schedule_selector(GameLayer::pollDepartingHeroes));
+	}
+
+	// ---- possession (Ino's Shintenshin) -----------------------------------
+	// Ino can take over the hero that is in play on the other side, from either
+	// side. The victim's side does not lose control of the match: it brings in its
+	// next hero at once. The possessed hero stays on the field and fights for
+	// Ino's team (steered by the human when the human's Ino cast it, by the AI
+	// otherwise) until the possession ends, then goes back to its owner's bench.
+	//
+	// Returns false when the possession must not happen: the victim's side has no
+	// other hero to bring in, or the target is already in an unusual state.
+	// Returns true for heroes that are not part of an arena roster, which keep the
+	// normal possession.
+	bool beginPossession(Hero *captive, Hero *captor)
+	{
+		const bool victimIsPlayer = isRosterMember(true, captive);
+		if (!victimIsPlayer && !isRosterMember(false, captive))
+			return true;
+		if (isCaptive(captive) || captive == husk(victimIsPlayer) || captive->_isBenched)
+			return false;
+
+		Side &s = side(victimIsPlayer);
+		const int slot = s.firstLivingSlot();
+		if (slot < 0)
+			return false;
+
+		const std::string captiveKey = keyOf(captive, victimIsPlayer);
+		const std::string incomingKey = s.bench[slot];
+		Hero *incoming = findLiving(s, incomingKey);
+		if (!incoming)
+			return false;
+
+		if (victimIsPlayer)
+		{
+			// Out of the human's hands first, so activate() sees nobody to replace.
+			captive->setRole(Role::Com);
+			captive->_isAI = true;
+			captive->_isHoldingChakraCharge = false;
+		}
+		activate(incoming, captive->getPosition(), captive->_isFlipped, victimIsPlayer);
+
+		// The captive takes the slot the replacement came from, shown as unavailable.
+		s.bench[slot] = captiveKey;
+		s.unavailable.insert(captiveKey);
+		_captures.push_back({ captive, captor });
+
+		if (victimIsPlayer)
+		{
+			refreshPlayerHud(incoming, incomingKey);
+			if (auto hud = _owner->getHudLayer())
+				hud->onDuelPlayerSwapped(slot, captiveKey, false);
+			captive->doAI(); // it fights for Ino from here on
+		}
+		else
+		{
+			showEnemy(slot, incomingKey, captiveKey, incoming);
+		}
+		return true;
+	}
+
+	bool isPossessing(const Hero *captor) const
+	{
+		for (const auto &capture : _captures)
+		{
+			if (capture.captor == captor)
+				return true;
+		}
+		return false;
+	}
+
+	bool isCaptive(const Hero *hero) const
+	{
+		for (const auto &capture : _captures)
+		{
+			if (capture.captive == hero)
+				return true;
+		}
+		return false;
+	}
+
+	Hero *husk(bool playerSide) const { return _husks[playerSide ? 1 : 0]; }
+
+	// The possession is over (it ran out, Ino was hit out of it, or she died):
+	// everything she held goes back to its owner's bench, and an Ino that was
+	// being kept on the field as a husk goes to her own bench.
+	//
+	// Ino calls this at the END of her own cleanup. Her loops already hand control
+	// back and restore the team of a possessed hero that is standing in the open;
+	// this covers what they cannot reach (a hero that was hidden meanwhile) and
+	// does the arena side of it: the bench, the slots and the husk.
+	void releaseCapturedBy(Hero *captor)
+	{
+		const bool captorIsPlayer = isRosterMember(true, captor);
+
+		for (size_t i = 0; i < _captures.size();)
+		{
+			if (_captures[i].captor != captor)
+			{
+				++i;
+				continue;
+			}
+
+			Hero *captive = _captures[i].captive;
+			_captures.erase(_captures.begin() + i);
+
+			const bool captiveIsPlayer = isRosterMember(true, captive);
+			side(captiveIsPlayer).unavailable.erase(keyOf(captive, captiveIsPlayer));
+
+			captive->_isControlled = false;
+			captive->setController(nullptr);
+			if (captive->getGroup() != homeGroup(captiveIsPlayer))
+				captive->changeGroup();
+			captive->refreshTeamBarColor(); // changeGroup() may have picked the wrong colour (see CharacterBase.h)
+
+			// Already hidden if its side swapped away mid-possession.
+			if (captive->getState() != State::DEAD && !captive->_isBenched)
+				bench(captive);
+		}
+
+		releaseHusk(captor);
 	}
 
 	// ---- deaths -----------------------------------------------------------
@@ -372,15 +542,61 @@ public:
 		DeathReport report;
 		for (const auto &death : batch)
 		{
-			const bool playerSide = death.group == _owner->playerGroup;
-			Side &s = side(playerSide);
 			auto *deadHero = static_cast<Hero *>(death.hero);
+
+			// The side comes from the roster, not from the hero's group: a hero
+			// Ino possessed fights for the other group but is still its
+			// owner's, and its death is its owner's loss.
+			const bool playerSide = isRosterMember(true, deadHero);
+			Side &s = side(playerSide);
 
 			const std::string deadKey = keyOf(deadHero, playerSide);
 			s.fallen.insert(deadKey);
 			s.heroes.erase(deadKey);
+			s.unavailable.erase(deadKey);
 
-			const int nextSlot = s.firstLivingSlot();
+			// A possessed hero killed by its owner's enemies, or an Ino husk killed
+			// by the player, was not the hero in play: nobody steps in for it, the
+			// side just loses that hero.
+			const bool wasHusk = deadHero == husk(playerSide);
+			const bool wasCaptive = endCaptureOfCaptive(deadHero);
+			if (wasHusk)
+			{
+				releaseCapturedBy(deadHero); // what she held returns (normally already done by her death)
+				clearHusk(playerSide);
+			}
+			if (wasHusk || wasCaptive)
+			{
+				remove(deadHero);
+				if (!playerSide)
+					refreshEnemyBenchIcon(deadKey);
+				continue;
+			}
+
+			int nextSlot = s.firstLivingSlot();
+			// Nobody else left to send in, but Ino's husk is still standing: she is
+			// the last hero and takes over instead of the side being out.
+			if (nextSlot < 0 && husk(playerSide))
+			{
+				const std::string huskKey = keyOf(husk(playerSide), playerSide);
+				auto at = std::find(s.bench.begin(), s.bench.end(), huskKey);
+				if (at != s.bench.end())
+				{
+					nextSlot = static_cast<int>(at - s.bench.begin());
+					s.unavailable.erase(huskKey);
+					clearHusk(playerSide);
+				}
+			}
+
+			// Nobody else left to send in, but a hero of this side may still be alive
+			// in an Ino's grip. The side is not out while that is true: the
+			// possession breaks and that hero takes the field where it stands.
+			// (Otherwise killing the last free hero of the side that Ino is holding
+			// one of would count as wiping the whole side.)
+			Hero *takenBack = nullptr;
+			if (nextSlot < 0)
+				takenBack = takeBackCaptive(playerSide, nextSlot);
+
 			const bool sideOut = nextSlot < 0;
 
 			if (deadHero == _owner->currentPlayer)
@@ -417,7 +633,10 @@ public:
 				continue;
 
 			Hero *incoming = it->second;
-			activate(incoming, death.position, death.flipped, playerSide);
+			if (takenBack)
+				activate(incoming, takenBack->getPosition(), takenBack->_isFlipped, playerSide);
+			else
+				activate(incoming, death.position, death.flipped, playerSide);
 
 			if (playerSide)
 			{
@@ -440,6 +659,12 @@ private:
 	static constexpr int kEnemySwapJitter = 21;
 	static constexpr float kMaxDepartSeconds = 6.0f;
 
+	struct Capture
+	{
+		Hero *captive; // the possessed hero
+		Hero *captor;  // the Ino holding it
+	};
+
 	struct Departing
 	{
 		Hero *hero;
@@ -460,13 +685,165 @@ private:
 	std::vector<Hero *> _benched;
 	std::vector<PendingDeath> _pending;
 	std::vector<Departing> _departing;
+	std::vector<Capture> _captures;
+	Hero *_husks[2] = { nullptr, nullptr }; // [0] enemy, [1] player: an Ino left on the field while her side plays another hero
 	CharacterBase *_heldPlayer = nullptr; // see resolveDeaths()
 	float _enemySwapCountdown = kEnemyFirstSwapWait;
 	uint32_t _chakra[2] = { 0, 0 }; // [0] enemy, [1] player
 
+	void clearHusk(bool playerSide)
+	{
+		Hero *&slot = _husks[playerSide ? 1 : 0];
+		if (slot)
+			slot->_isArenaHusk = false;
+		slot = nullptr;
+	}
+
+	// The group a roster's heroes belong to when nothing is possessed.
+	Group homeGroup(bool playerSide) const
+	{
+		if (playerSide)
+			return _owner->playerGroup;
+		return _owner->playerGroup == Group::Konoha ? Group::Akatsuki : Group::Konoha;
+	}
+
+	// Leaves `ino` standing on the field, hittable but inert, while her side plays
+	// another hero. What she possessed hides; if the human was steering it, the
+	// steering ends here.
+	void makeHusk(bool playerSide, Hero *ino, const std::string &key)
+	{
+		clearHusk(playerSide);
+		_husks[playerSide ? 1 : 0] = ino;
+		ino->_isArenaHusk = true;
+
+		// Nobody drives her any more (the flag also keeps her AI quiet).
+		if (ino->isPlayer())
+			ino->setRole(Role::Com);
+		ino->_isControlled = false;
+		ino->_isAI = false;
+		ino->unschedule(schedule_selector(CharacterBase::setAI));
+
+		side(playerSide).unavailable.insert(key);
+
+		for (const auto &capture : _captures)
+		{
+			if (capture.captor != ino)
+				continue;
+			if (_owner->controlChar == capture.captive)
+				_owner->controlChar = nullptr;
+			bench(capture.captive);
+		}
+	}
+
+	// Takes a husk off the field once her possession is over.
+	void releaseHusk(Hero *ino)
+	{
+		for (bool playerSide : { true, false })
+		{
+			if (husk(playerSide) != ino || ino->getState() == State::DEAD)
+				continue;
+
+			// A dead husk stays marked until resolveDeaths() has seen her death (it
+			// needs to know she was the husk and not the hero in play, and Ino's
+			// death calls this first).
+			clearHusk(playerSide);
+			side(playerSide).unavailable.erase(keyOf(ino, playerSide));
+			bench(ino);
+		}
+	}
+
+	bool isRosterMember(bool playerSide, const Hero *hero) const
+	{
+		for (const auto &entry : side(playerSide).heroes)
+		{
+			if (entry.second == hero)
+				return true;
+		}
+		return false;
+	}
+
+	// If `hero` was a possessed hero: ends its possession (Ino returns to normal)
+	// and forgets the record. The caller removes the hero.
+	bool endCaptureOfCaptive(Hero *hero)
+	{
+		for (size_t i = 0; i < _captures.size(); ++i)
+		{
+			if (_captures[i].captive != hero)
+				continue;
+
+			Hero *captor = _captures[i].captor;
+			_captures.erase(_captures.begin() + i);
+
+			// Ino's own cleanup, minus the part that needs the hero alive.
+			captor->setActionResume();
+			if (captor->getState() != State::DEAD && captor->getState() != State::IDLE)
+				captor->idle();
+
+			releaseHusk(captor);
+			return true;
+		}
+		return false;
+	}
+
+	// Finds a living hero of `playerSide` that Ino currently holds, ends that
+	// possession (control and team go back to normal through Ino's own cleanup)
+	// and reports its bench slot in `slot`. Returns the hero, or null if there is
+	// none. The caller puts it on the field.
+	Hero *takeBackCaptive(bool playerSide, int &slot)
+	{
+		Side &s = side(playerSide);
+		for (size_t i = 0; i < _captures.size(); ++i)
+		{
+			Hero *captive = _captures[i].captive;
+			if (captive->getState() == State::DEAD || !isRosterMember(playerSide, captive))
+				continue;
+
+			const std::string key = keyOf(captive, playerSide);
+			auto at = std::find(s.bench.begin(), s.bench.end(), key);
+			if (at == s.bench.end())
+				continue;
+
+			Hero *captor = _captures[i].captor;
+			_captures.erase(_captures.begin() + i);
+			s.unavailable.erase(key);
+
+			// Ino's own cleanup: hands control back to her and undoes the team switch
+			// of a possessed hero standing in the open. Its last step reports to
+			// releaseCapturedBy(), which finds nothing left to do for this hero.
+			captor->setActionResume();
+			if (captor->getState() != State::DEAD && captor->getState() != State::IDLE)
+				captor->idle();
+
+			// A hero that was hidden meanwhile is out of her reach: make sure.
+			captive->_isControlled = false;
+			captive->setController(nullptr);
+			if (captive->getGroup() != homeGroup(playerSide))
+				captive->changeGroup();
+
+			releaseHusk(captor);
+			slot = static_cast<int>(at - s.bench.begin());
+			return captive;
+		}
+		return nullptr;
+	}
+
+	// Redraws the enemy HUD after a bench hero died on its own (Ino's husk).
+	void refreshEnemyBenchIcon(const std::string &deadKey)
+	{
+		Side &s = side(false);
+		auto at = std::find(s.bench.begin(), s.bench.end(), deadKey);
+		Hero *active = activeHero(false);
+		auto hud = _owner->getHudLayer();
+		if (hud && active && at != s.bench.end())
+		{
+			hud->onDuelEnemySwapped(static_cast<int>(at - s.bench.begin()), keyOf(active, false), deadKey,
+									active->getHpPercent());
+		}
+	}
+
 	Hero *findLiving(Side &s, const std::string &key)
 	{
-		if (s.hasFallen(key))
+		if (s.hasFallen(key) || s.isUnavailable(key))
 			return nullptr;
 		auto it = s.heroes.find(key);
 		if (it == s.heroes.end() || !it->second || it->second->getState() == State::DEAD)
@@ -538,6 +915,8 @@ private:
 		{
 			hero->setRole(Role::Player);
 			hero->_isAI = false;
+			// A hero that comes back from a possession was running AI for Ino.
+			hero->unschedule(schedule_selector(CharacterBase::setAI));
 			_owner->currentPlayer = hero;
 
 			// The HP bar was chosen by role at spawn (benched allies got the
@@ -553,6 +932,7 @@ private:
 		else
 		{
 			hero->setRole(Role::Com);
+			hero->refreshTeamBarColor(); // its bar may still carry the colour of whoever held it
 			hero->doAI();
 		}
 	}

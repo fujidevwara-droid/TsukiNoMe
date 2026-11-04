@@ -406,7 +406,13 @@ void GameOver::listResult()
 			// In the arena the hero that is on the field is not necessarily the one
 			// that was picked, and may be transformed: use its roster name.
 			if (isDuelMode())
-				resultChar = getGameLayer()->duel().keyOf(static_cast<Hero *>(currPlayer), true);
+			{
+				// The hero being steered can be a possessed enemy; the record goes
+				// to the hero that is really in play on the human's side.
+				auto &duel = getGameLayer()->duel();
+				Hero *inPlay = duel.activeHero(true);
+				resultChar = duel.keyOf(inPlay ? inPlay : static_cast<Hero *>(currPlayer), true);
+			}
 
 			if (_isWin && getGameMode() == GameMode::Duels)
 			{

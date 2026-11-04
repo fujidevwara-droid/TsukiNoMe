@@ -19,10 +19,20 @@ public:
 	void onInitHeros()
 	{
 		initHeros(1, 1);
+
+		// The select screen has one "com" slot in this mode: the opponent. If it
+		// was filled, that hero replaces the one initHeros() rolled for the
+		// enemy side (index 1; the player is always index 0). Left empty, the
+		// random opponent stands.
+		if (selectLayer && selectLayer->_com1Select)
+			overrideHeroName(1, selectLayer->_com1Select);
 	}
 
 	void onGameStart()
 	{
+		// No Guardian in 1 VS 1. The flag is read when a tower falls (HPBar), long
+		// after this point, so setting it here is early enough.
+		getGameLayer()->_enableGuardian = false;
 	}
 
 	void onGameOver()

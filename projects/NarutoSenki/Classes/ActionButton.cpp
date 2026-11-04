@@ -282,7 +282,8 @@ bool ActionButton::isCanClick()
 				auto player = getGameLayer()->currentPlayer;
 				const auto &roster = getGameLayer()->duel().side(true);
 				const size_t slot = (_abType == AllySwitch1) ? 0 : 1;
-				const bool fallen = slot < roster.bench.size() && roster.hasFallen(roster.bench[slot]);
+				const bool fallen = slot < roster.bench.size() &&
+									(roster.hasFallen(roster.bench[slot]) || roster.isUnavailable(roster.bench[slot]));
 				// Not during an ougi cut-in: everything on the field is frozen then,
 				// and swapping heroes under a freeze would resume the wrong things.
 				if (player && player->getState() != State::DEAD && getTimeCount() == 0 && !fallen && !_delegate->ougisLayer)

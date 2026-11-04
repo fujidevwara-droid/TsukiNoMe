@@ -48,6 +48,10 @@ class Ino : public Hero
 		}
 
 		_isArmored = false;
+
+		// Arena: now that control and teams are back to normal for everything in
+		// the open, send what she possessed back to its owner's bench.
+		releaseArenaCaptive();
 	}
 
 	void perform() override
@@ -256,6 +260,9 @@ class Ino : public Hero
 		}
 
 		_isArmored = false;
+
+		releaseArenaCaptive(); // arena: the possessed hero returns to its owner's bench (see dead())
+
 		CharacterBase::resumeAction(dt);
 	}
 
@@ -298,5 +305,7 @@ class Ino : public Hero
 		}
 
 		_isArmored = false;
+
+		releaseArenaCaptive(); // arena: the possessed hero returns to its owner's bench (see dead())
 	}
 };

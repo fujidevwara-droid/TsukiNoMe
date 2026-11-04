@@ -15,12 +15,19 @@ function SelectLayer:init()
     -- Duels / Arcade: one hero on the field and two on the bench. You pick all
     -- three; the enemy side is rolled by the game.
     self.isArenaMode = self.mode == GameMode.Duels or self.mode == GameMode.Arcade
+    self.is1v1Mode = self.mode == GameMode.OneVsOne
 
     if self.isArenaMode then
         self.enableCustomSelect = true
         self.is3v3Mode = false
         self.is4v4Mode = false
-    elseif self.mode == GameMode.Clone or self.mode == GameMode.OneVsOne then
+    elseif self.mode == GameMode.OneVsOne then
+        -- You pick yourself and your one opponent. This does not depend on the
+        -- cheat level the way the team-size modes' custom selection does.
+        self.enableCustomSelect = true
+        self.is3v3Mode = false
+        self.is4v4Mode = false
+    elseif self.mode == GameMode.Clone then
         self.enableCustomSelect = false
         self.is3v3Mode = false
         self.is4v4Mode = false
@@ -232,6 +239,8 @@ function SelectLayer:init()
     if self.enableCustomSelect then
         if self.isArenaMode then
             self:initCustomSelectModeArena()
+        elseif self.is1v1Mode then
+            self:initCustomSelectMode1v1()
         elseif self.is3v3Mode or self.is4v4Mode then
             self:initCustomSelectMode()
         end
@@ -355,6 +364,29 @@ function SelectLayer:initCustomSelectMode()
         teamSelector:addChild(self._comLabel3)
         self._comSelector3 = comSelector3
     end
+
+    self:addChild(teamSelector, 50)
+end
+
+-- 1 VS 1: a single opponent slot, no allies.
+function SelectLayer:initCustomSelectMode1v1()
+    log('Initial Custom Select Mode (1v1)...')
+    local teamSelector = display.newLayer()
+
+    local teamBg = display.newSprite('#team_bg.png', 0, 185)
+    teamBg:setAnchorPoint(0, 0)
+    teamSelector:addChild(teamBg)
+
+    local comSelector1 = display.newSprite('#unknow_select.png', 2, 194)
+    comSelector1:setAnchorPoint(0, 0)
+    teamSelector:addChild(comSelector1)
+    self._comSelector1 = comSelector1
+
+    self._comLabel1 = display.newSprite('#com_label.png')
+    self._comLabel1:setPosition(
+        comSelector1:getPositionX() + comSelector1:getContentSize().width + 2 + 18,
+        comSelector1:getPositionY() + comSelector1:getContentSize().height / 2)
+    teamSelector:addChild(self._comLabel1)
 
     self:addChild(teamSelector, 50)
 end
@@ -512,6 +544,12 @@ function SelectLayer:setSelected(btn)
             self._comLabel1:setOpacity(255)
             self._comLabel1:setDisplayFrame(
                 display.newSpriteFrame('com_label2.png'))
+
+            -- One opponent is all a 1 VS 1 needs: nothing left to pick.
+            if self.is1v1Mode then
+                self._selectImg:removeFromParent()
+                self._selectImg = nil
+            end
         end
     elseif not self._com2Select then
         self._comSelector2:setDisplayFrame(
@@ -553,6 +591,8 @@ function SelectLayer:noComSelect()
         return self._com3Select
     elseif self.is3v3Mode then
         return self._com2Select
+    elseif self.is1v1Mode then
+        return self._com1Select
     else
         return self._playerSelect
     end

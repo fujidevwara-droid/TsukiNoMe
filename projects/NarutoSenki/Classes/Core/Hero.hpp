@@ -398,7 +398,13 @@ public:
 		}
 		else
 		{
+			// A transform is this same routine run again with the new name. The
+			// first run (empty name) is not one.
+			const bool transformed = !getName().empty() && getName() != name;
 			setName(name);
+
+			if (transformed)
+				getGameLayer()->onHeroTransformed(this);
 		}
 
 		initAction();
@@ -687,10 +693,19 @@ public:
 	{
 		// A benched duel hero has no AI. It is frozen as well, so this should
 		// never tick; the check is the safety net.
-		if (_isBenched)
+		if (_isBenched || _isArenaHusk)
 			return;
 
 		// A forced chakra charge holds the AI still until it ends (arena only).
+		if (_isAIChargingChakra)
+			return;
+
+		// The arena AI decides about charging chakra here, once per tick, before
+		// the hero's own AI picks an action. Every hero's AI passes through this
+		// function, which is not true of any single AI routine inside it. (The
+		// call does nothing outside the duel modes; it is not checked here
+		// because this header cannot see the game-mode helpers.)
+		tryAIChargeChakra();
 		if (_isAIChargingChakra)
 			return;
 

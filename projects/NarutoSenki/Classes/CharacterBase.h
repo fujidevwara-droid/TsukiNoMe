@@ -116,17 +116,25 @@ public:
 	// True while a human is holding the ramen button to charge the pool. Walking
 	// is ignored meanwhile (every other action still works and ends the charge).
 	bool				_isHoldingChakraCharge = false;
+	// An Ino that is still on the field only so she can be hit while the enemy
+	// plays another hero (see DuelSystem). She does not act while it is set.
+	bool				_isArenaHusk = false;
 	// AI "hold the ramen button" charge, see tryAIChargeChakra().
 	bool				_isAIChargingChakra = false;
 	float				_aiChakraChargeHeld = 0.0f;
 	uint32_t			_nextChakraChargeAttemptSecond = 0;
 	// How the arena AI decides to charge chakra (see tryAIChargeChakra()).
 	static constexpr uint32_t kAIChargeAttemptSeconds = 10;  // one decision this often
-	static constexpr int kAIChargeChancePercent = 25;        // chance a decision starts a charge
+	static constexpr int kAIChargeChancePercent = 50;        // chance a decision starts a charge
 	static constexpr uint32_t kAIChargeMaxBars = 2;          // only while the pool holds this many bars or fewer
 	static constexpr int kAIChargeSelfInterruptPercent = 10; // chance a charge is abandoned early, on the AI's own
 	// The one charge in progress: whether it will be abandoned early, and when.
 	bool				_aiChargeSelfInterrupts = false;
+	// A roll that succeeded while the hero was mid-action: the charge starts as
+	// soon as it is free to (see tryAIChargeChakra), but not later than this.
+	bool				_aiChargeDue = false;
+	uint32_t			_aiChargeDueUntil = 0;
+	static constexpr uint32_t kAIChargeWaitSeconds = 6;
 	float				_aiChargeInterruptAt = 0.0f;
 	int					changeCharId = -1; // NOTE: Support for random deathmatch mode
 
@@ -478,6 +486,17 @@ public:
 	// other summon, puppet, Mon and projectile is deliberately left alone: they
 	// keep running while their owner is benched.
 	void				killOwnedSummons();
+
+	// For Ino: tells the arena that a possession is over, so what she held goes
+	// back to its owner's bench. Does nothing outside the duel modes.
+	void				releaseArenaCaptive();
+
+	// Colours this hero's floating HP bar by which side it is on: blue for the
+	// human's team, red for the other. changeGroup() decides by comparing with
+	// currentPlayer, which is wrong whenever the hero being compared against is the
+	// possessed body itself (the human is steering it), so the arena sets the colour
+	// from the human's own team instead.
+	void				refreshTeamBarColor();
 
 	// Puts the hero into a real standing pose right now. idle() alone is not
 	// enough while movement keys are held: it skips the idle animation (expecting
