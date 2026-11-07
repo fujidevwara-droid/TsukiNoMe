@@ -5,6 +5,7 @@
 #include "GameMode/GameModeImpl.h"
 #include "MyUtils/CCShake.h"
 #include "Systems/CommandSystem.hpp"
+#include <sstream>
 #include "Systems/DuelSystem.hpp"
 #include "Utils/Debug/UnitDebug.hpp"
 
@@ -1017,6 +1018,8 @@ void CharacterBase::acceptAttack(Ref* object)
 	}
 }
 
+static bool parseAmountAndFrames(const string& args, float& amount, int& frames); // defined with setShake()
+
 FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fps, bool isLoop, bool isReturnToIdle)
 {
 	if (ationArray == nullptr || ationArray->count() == 0)
@@ -1028,6 +1031,31 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 	FiniteTimeAction* tempAction;
 	FiniteTimeAction* seq;
 	Ref* tObject;
+
+	// setZoom2 / setShake2 last a number of frames rather than seconds. That number
+	// is counted off the <f> entries that follow the tag in this list, so it is
+	// settled here, while the list is built: each such tag gets an "end it" step
+	// placed right after the frame that finishes the count, or at the end of the
+	// animation when no number was given (or the animation has fewer frames left).
+	struct FrameBound
+	{
+		std::shared_ptr<FrameLink> link;
+		bool isShake;
+		int framesLeft; // -1: until the animation ends
+		float startedAt;
+	};
+	vector<FrameBound> bound;
+	float elapsed = 0.0f; // how long the list takes so far, from the frame rate and the delays
+
+	auto addRelease = [&](const FrameBound& b)
+	{
+		// If the animation is cut short the end step never runs, so the effect also
+		// stops by itself, after generously more than the animation was meant to take.
+		b.link->failsafe = 2.0f * (elapsed - b.startedAt) + 0.5f;
+		auto call = b.isShake ? CallFunc::create(std::bind(&CharacterBase::releaseShakeLink, this, b.link))
+							  : CallFunc::create(std::bind(&CharacterBase::releaseZoomLink, this, b.link));
+		list.pushBack(call);
+	};
 
 	CCARRAY_FOREACH(ationArray, tObject)
 	{
@@ -1042,6 +1070,13 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 			{
 				auto frame = getSpriteFrame(keyValue);
 				spriteFrames.pushBack(frame);
+
+				elapsed += 1.0f / fps;
+				for (auto& b : bound)
+				{
+					if (b.framesLeft > 0)
+						--b.framesLeft;
+				}
 			}
 			else
 			{
@@ -1049,6 +1084,22 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 				tempAction = Animate::create(tempAnimation);
 
 				list.pushBack(tempAction);
+
+				// The frames just flushed are what the counts above ran down on: the
+				// effects whose count reached zero end right after them.
+				for (auto it = bound.begin(); it != bound.end();)
+				{
+					if (it->framesLeft == 0)
+					{
+						addRelease(*it);
+						it = bound.erase(it);
+					}
+					else
+					{
+						++it;
+					}
+				}
+
 				if (key == "setAttackBox")
 				{
 					auto call = CallFunc::create(std::bind(&CharacterBase::setAttackBox, this, keyValue));
@@ -1069,6 +1120,7 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 					float delayTime = dic->valueForKey(key)->intValue();
 					auto delay = DelayTime::create(delayTime / 100.0f);
 					list.pushBack(delay);
+					elapsed += delayTime / 100.0f;
 				}
 				else if (key == "setMove")
 				{
@@ -1079,6 +1131,30 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 				else if (key == "setSkillEffect")
 				{
 					auto call = CallFunc::create(std::bind(&CharacterBase::setSkillEffect, this, keyValue));
+					list.pushBack(call);
+				}
+				else if (key == "setZoom2" || key == "setShake2")
+				{
+					const bool isShake = key == "setShake2";
+					float amount = 0.0f;
+					int frames = -1;
+					if (parseAmountAndFrames(keyValue, amount, frames))
+					{
+						auto link = std::make_shared<FrameLink>();
+						auto call = isShake ? CallFunc::create(std::bind(&CharacterBase::setShakeUntil, this, amount, link))
+											: CallFunc::create(std::bind(&CharacterBase::setZoomUntil, this, amount, link));
+						list.pushBack(call);
+						bound.push_back({ link, isShake, frames, elapsed });
+					}
+				}
+				else if (key == "setShake")
+				{
+					auto call = CallFunc::create(std::bind(&CharacterBase::setShake, this, keyValue));
+					list.pushBack(call);
+				}
+				else if (key == "setZoom")
+				{
+					auto call = CallFunc::create(std::bind(&CharacterBase::setZoom, this, keyValue));
 					list.pushBack(call);
 				}
 				else if (key == "setJump")
@@ -1209,6 +1285,11 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 		tempAction = Animate::create(tempAnimation);
 		list.pushBack(tempAction);
 	}
+
+	// Whatever is still counting (no number given, or more frames asked for than
+	// the animation has) ends when the animation does.
+	for (const auto& b : bound)
+		addRelease(b);
 
 	if (isLoop)
 	{
@@ -1615,6 +1696,90 @@ void CharacterBase::setDamgeEffect(const string& type)
 			damageEffectCount++;
 		}
 	}
+}
+
+// "<amount>, <frames>": the amount (a zoom factor or a shake strength) and the
+// number of animation frames the effect lasts. The frame count may be left out, or
+// left empty ("1.5," or "1.5, "), or be 0: all of those mean "until the animation
+// has finished" and give frames = -1.
+static bool parseAmountAndFrames(const string& args, float& amount, int& frames)
+{
+	string cleaned = args;
+	std::replace(cleaned.begin(), cleaned.end(), ',', ' ');
+	std::istringstream in(cleaned);
+
+	if (!(in >> amount))
+		return false;
+
+	frames = -1;
+	int n = 0;
+	if (in >> n && n > 0)
+		frames = n;
+	return true;
+}
+
+void CharacterBase::setZoomUntil(float factor, std::shared_ptr<FrameLink> link)
+{
+	if (!isPlayer() && !isActivePlayerBody())
+		return;
+	link->id = getGameLayer()->zoomCameraHeld(factor, link->failsafe);
+}
+
+void CharacterBase::releaseZoomLink(std::shared_ptr<FrameLink> link)
+{
+	if (link->id != 0)
+		getGameLayer()->releaseZoom(link->id);
+}
+
+void CharacterBase::setShakeUntil(float strength, std::shared_ptr<FrameLink> link)
+{
+	if (!isPlayer() && !isActivePlayerBody())
+		return;
+	link->id = getGameLayer()->shakeScreenHeld(strength, link->failsafe);
+}
+
+void CharacterBase::releaseShakeLink(std::shared_ptr<FrameLink> link)
+{
+	if (link->id != 0)
+		getGameLayer()->releaseShake(link->id);
+}
+
+void CharacterBase::setShake(const string& args)
+{
+	if (!isPlayer() && !isActivePlayerBody())
+		return;
+
+	string cleaned = args;
+	std::replace(cleaned.begin(), cleaned.end(), ',', ' ');
+	std::istringstream in(cleaned);
+
+	float strength = 0.0f;
+	float seconds = 0.3f; // used if the tag gives only a strength
+	if (!(in >> strength))
+		return;
+	in >> seconds;
+
+	getGameLayer()->shakeScreen(strength, seconds);
+}
+
+void CharacterBase::setZoom(const string& args)
+{
+	// Only the hero the human is playing moves the camera.
+	if (!isPlayer() && !isActivePlayerBody())
+		return;
+
+	// "<factor>, <seconds>": the comma and any spaces both just separate the two.
+	string cleaned = args;
+	std::replace(cleaned.begin(), cleaned.end(), ',', ' ');
+	std::istringstream in(cleaned);
+
+	float factor = 1.0f;
+	float seconds = 1.0f; // used if the tag gives only a factor
+	if (!(in >> factor))
+		return;
+	in >> seconds;
+
+	getGameLayer()->zoomCamera(factor, seconds);
 }
 
 void CharacterBase::setSkillEffect(const string& type)
@@ -2085,9 +2250,12 @@ void CharacterBase::setAttackBox(const string& effectType)
 		if ((_state == State::OATTACK || _state == State::O2ATTACK) && _isHitOne == true && !getGameLayer()->_isShacking)
 		{
 			getGameLayer()->_isShacking = true;
+			// The shared screen shake replaces the CCShake action that used to run on the
+			// scene here: two of those at once left the screen stuck off-centre.
+			getGameLayer()->shakeScreen(12.0f, 0.05f);
 			Scene* f = Director::sharedDirector()->getRunningScene();
 			auto call = CallFunc::create(std::bind(&CharacterBase::disableShack, this));
-			f->runAction(newSequence(CCShake::create(0.05f, 12), call));
+			f->runAction(newSequence(DelayTime::create(0.05f), call));
 		}
 		if (getGameLayer()->_isAttackButtonRelease && _state == State::NATTACK && !_isOnlySkillLocked && !_isAI)
 		{

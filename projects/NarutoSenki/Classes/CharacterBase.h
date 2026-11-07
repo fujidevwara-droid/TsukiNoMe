@@ -25,6 +25,16 @@ enum class State : uint16_t
 class HPBar;
 class Hero;
 
+// Ties the two halves of a frame-counted effect (setZoom2 / setShake2) together:
+// the step that starts it writes `id` when it runs, the step placed after the
+// last frame reads it to end exactly that effect. `failsafe` is how long the
+// effect may run if that second step is never reached (an interrupted animation).
+struct FrameLink
+{
+	int id = 0;
+	float failsafe = 6.0f;
+};
+
 class CharacterBase : public Sprite
 {
 	friend class CommandSystem;
@@ -546,6 +556,25 @@ public:
 	void				setDamgeDisplay(int value, const char* font);
 
 	void				setSkillEffect(const string& type);
+
+	// XML <e type="setZoom">factor, seconds</e>: zooms the camera in on the hero the
+	// human is playing, holds it, and eases back after `seconds`. Ignored for every
+	// other hero, so an enemy's skill never moves your camera.
+	void				setZoom(const string& args);
+
+	// XML <e type="setShake">strength, seconds</e>: shakes the screen. Like setZoom,
+	// only the hero the human is playing does it.
+	void				setShake(const string& args);
+
+	// XML <e type="setZoom2">factor, frames</e> and <e type="setShake2">strength, frames</e>:
+	// the same effects, but they last for a number of the animation's frames (the
+	// <f> entries after the tag) instead of for seconds. With no number they last
+	// until the animation has finished. Resolved while the animation is built, see
+	// createAnimation().
+	void				setZoomUntil(float factor, std::shared_ptr<FrameLink> link);
+	void				releaseZoomLink(std::shared_ptr<FrameLink> link);
+	void				setShakeUntil(float strength, std::shared_ptr<FrameLink> link);
+	void				releaseShakeLink(std::shared_ptr<FrameLink> link);
 	// void				setItemEffect(const string &type);
 	void				setDamgeEffect(const string& type);
 	void				setMonAttack(int skillNum);

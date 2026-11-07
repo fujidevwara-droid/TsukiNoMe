@@ -26,6 +26,9 @@
 #include "../../../cocos2dx/platform/android/jni/JniHelper.h"
 #endif
 
+#include "Systems/CameraZoom.hpp"
+#include "Systems/ScreenShake.hpp"
+
 class BGLayer;
 class CharacterBase;
 class Hero;
@@ -163,6 +166,24 @@ public:
 		}
 		return bounds;
 	}
+
+	// Camera zoom (see Systems/CameraZoom.hpp). Started by the character XML tag
+	// <e type="setZoom">factor, seconds</e> through CharacterBase::setZoom().
+	CameraZoom _zoom;
+	void zoomCamera(float factor, float holdSeconds) { _zoom.trigger(factor, holdSeconds); }
+	// Frame-counted version (setZoom2): returns the id release has to be given.
+	int zoomCameraHeld(float factor, float failsafeSeconds) { return _zoom.triggerHeld(factor, failsafeSeconds); }
+	void releaseZoom(int id) { _zoom.release(id); }
+
+	// Screen shake (see Systems/ScreenShake.hpp): from the XML tag
+	// <e type="setShake">strength, seconds</e> through CharacterBase::setShake(), and
+	// from the hit shake of the human's ougis. Moves the whole scene, HUD included.
+	ScreenShake _shake;
+	bool _shakeApplied = false; // the scene is currently offset by the shake
+	void shakeScreen(float strength, float seconds) { _shake.trigger(strength, seconds); }
+	int shakeScreenHeld(float strength, float failsafeSeconds) { return _shake.triggerHeld(strength, failsafeSeconds); }
+	void releaseShake(int id) { _shake.release(id); }
+	void applyShake();
 
 	// Arcade "next stage": the results screen sets these and leaves through
 	// onLeft(), which then starts the next match directly instead of handing

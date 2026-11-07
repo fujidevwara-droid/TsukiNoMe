@@ -80,18 +80,72 @@ void BattleRuntimeSystem::updateViewPoint(GameLayer* layer) const
 	const Size mapPixels(layer->currentMap->getMapSize().width * layer->currentMap->getTileSize().width,
 						 layer->currentMap->getMapSize().height * layer->currentMap->getTileSize().height);
 
+	// Where the camera sits with no zoom.
+	Vec2 base;
 	if (isDuelMode())
 	{
 		// The arena fits on one screen: the camera stays put, centred on the map.
-		layer->setPosition(Vec2((winSize.width - mapPixels.width) / 2.0f, (winSize.height - mapPixels.height) / 2.0f));
+		base = Vec2((winSize.width - mapPixels.width) / 2.0f, (winSize.height - mapPixels.height) / 2.0f);
+	}
+	else
+	{
+		int x = MAX(playerPoint.x, winSize.width / 2);
+		int y = MAX(playerPoint.y, winSize.width / 2);
+		x = MIN(x, mapPixels.width - winSize.width / 2);
+		y = MIN(y, mapPixels.height - winSize.height / 2);
+		base = Vec2(winSize.width / 2, y) - Vec2(x, y);
+	}
+
+	const CameraZoom &zoom = layer->_zoom;
+	if (!zoom.isActive())
+	{
+		layer->setScale(1.0f);
+		layer->setPosition(base);
 		return;
 	}
 
-	int x = MAX(playerPoint.x, winSize.width / 2);
-	int y = MAX(playerPoint.y, winSize.width / 2);
-	x = MIN(x, mapPixels.width - winSize.width / 2);
-	y = MIN(y, mapPixels.height - winSize.height / 2);
-	layer->setPosition(Vec2(winSize.width / 2, y) - Vec2(x, y));
+	// Zoomed: the layer scales around its anchor point (the middle of the layer, not
+	// its corner), so a world point w lands on screen at
+	//     position + A * (1 - s) + s * w          (A = anchor point, in points)
+	// "origin" below is position + A * (1 - s): where the layer's own (0, 0) corner
+	// ends up. Written that way, the placement is just origin + s * w.
+	// Put the player in the middle of the screen, but
+	// never let the view run past the map (a map smaller than the view is centred).
+	// The result is blended with the normal camera by the tween's weight, so the
+	// zoom eases in from wherever the camera was and eases back to it, in the arena
+	// (fixed camera, which follows the player only while zoomed) and in the scrolling
+	// modes alike. Walls and other limits are defined in map space and never look
+	// at any of this.
+	const float s = zoom.scale();
+	const float w = zoom.weight();
+	auto fit = [](float wanted, float lowest, float highest)
+	{
+		return lowest > highest ? (lowest + highest) / 2.0f : (std::min)((std::max)(wanted, lowest), highest);
+	};
+
+	// The zoomed view stays inside the playable width: the map edges, and in the
+	// arena the walls (which sit inside the map; the strip outside them is never
+	// shown while zoomed). When the player is near an edge the view stops at it and
+	// the player ends up off-centre rather than the view running past. If the
+	// playable width is narrower than the zoomed view, it is centred instead.
+	float leftEdge = 0.0f;
+	float rightEdge = mapPixels.width;
+	if (isDuelMode())
+	{
+		const auto arena = layer->arenaBounds();
+		leftEdge = arena.minX;
+		rightEdge = arena.maxX;
+	}
+
+	// Screen's left edge shows world x = (0 - origin) / s, so origin <= -s * leftEdge;
+	// screen's right edge shows (W - origin) / s, so origin >= W - s * rightEdge.
+	const Vec2 zoomed(fit(winSize.width / 2 - s * playerPoint.x, winSize.width - s * rightEdge, -s * leftEdge),
+					  fit(winSize.height / 2 - s * playerPoint.y, winSize.height - s * mapPixels.height, 0.0f));
+
+	// base is the origin at scale 1, where the anchor term is zero.
+	const Vec2 origin = base + (zoomed - base) * w;
+	layer->setScale(s);
+	layer->setPosition(origin - layer->getAnchorPointInPoints() * (1.0f - s));
 }
 
 void SpawnSystem::initMatchUnits(GameLayer* layer) const
@@ -590,9 +644,36 @@ void GameLayer::updateGameTime(float dt)
 	_battleRuntimeSystem->updateGameTime(this);
 }
 
+void GameLayer::applyShake()
+{
+	auto scene = Director::sharedDirector()->getRunningScene();
+	if (!scene)
+		return;
+
+	if (_shake.isActive())
+	{
+		float x = 0.0f;
+		float y = 0.0f;
+		_shake.sample(x, y);
+		scene->setPosition(Vec2(x, y));
+		_shakeApplied = true;
+	}
+	else if (_shakeApplied)
+	{
+		// Done: put the screen back exactly where it belongs.
+		scene->setPosition(Vec2(0, 0));
+		_shakeApplied = false;
+	}
+}
+
 void GameLayer::updateViewPoint(float dt)
 {
+	// Advances with the layer's own scheduler, so it holds still while an ougi
+	// cut-in has the layer paused.
+	_zoom.update(dt);
+	_shake.update(dt);
 	_battleRuntimeSystem->updateViewPoint(this);
+	applyShake();
 }
 
 void GameLayer::setTowerState(int charId)
@@ -1059,7 +1140,20 @@ void GameLayer::setOugis(CharacterBase* sender)
 		updateViewPoint(0.01f);
 
 		blend = LayerColor::create(ccc4(0, 0, 0, 200), winSize.width, winSize.height);
-		blend->setPosition(Vec2(-getPositionX(), 0));
+		// A child of this layer, so it is scaled with it: undo the zoom so the dark
+		// veil still covers exactly the screen. (Where the layer's corner is on
+		// screen includes the anchor term, see BattleRuntimeSystem::updateViewPoint.)
+		const float zoomScale = getScale();
+		const Vec2 corner = getPosition() + getAnchorPointInPoints() * (1.0f - zoomScale);
+
+		// The veil scales around its own anchor point too (the middle of it), so its
+		// corner does not stay where setPosition() puts it once it is scaled:
+		// scaled corner = position + anchor * (1 - scale). Solve for the position
+		// that lands the corner exactly on the screen's corner.
+		const float veilScale = 1.0f / zoomScale;
+		const Vec2 cornerInLayer = Vec2(-corner.x, -corner.y) / zoomScale;
+		blend->setScale(veilScale);
+		blend->setPosition(cornerInLayer - blend->getAnchorPointInPoints() * (1.0f - veilScale));
 		addChild(blend, 1000);
 		sender->setZOrder(2000);
 

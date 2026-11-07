@@ -226,6 +226,8 @@ xcopy /Y /Q "$(SolutionDir)$(Configuration).win32\*.exe" "$(SolutionDir)projects
     <ClInclude Include="..\Classes\Systems\CommandSystem.hpp" />
     <ClInclude Include="..\Classes\Systems\DuelSystem.hpp" />
     <ClInclude Include="..\Classes\Systems\DuelChakra.hpp" />
+    <ClInclude Include="..\Classes\Systems\CameraZoom.hpp" />
+    <ClInclude Include="..\Classes\Systems\ScreenShake.hpp" />
     <ClInclude Include="..\Classes\Systems\Initializer.hpp" />
     <ClInclude Include="..\Classes\UI\GameModeLayer.h" />
     <ClInclude Include="..\Classes\UI\ModeMenuButton.hpp" />

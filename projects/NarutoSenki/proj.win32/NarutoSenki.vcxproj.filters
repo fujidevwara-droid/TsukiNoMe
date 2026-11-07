@@ -257,6 +257,12 @@
     <ClInclude Include="..\Classes\Systems\DuelChakra.hpp">
       <Filter>Classes\Systems</Filter>
     </ClInclude>
+    <ClInclude Include="..\Classes\Systems\CameraZoom.hpp">
+      <Filter>Classes\Systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\Systems\ScreenShake.hpp">
+      <Filter>Classes\Systems</Filter>
+    </ClInclude>
     <ClInclude Include="..\Classes\Enums\Audio.hpp">
       <Filter>Classes\Enums</Filter>
     </ClInclude>
