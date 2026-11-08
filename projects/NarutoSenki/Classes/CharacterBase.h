@@ -600,6 +600,21 @@ public:
 	void				releaseZoomLink(std::shared_ptr<FrameLink> link);
 	void				setShakeUntil(float strength, std::shared_ptr<FrameLink> link);
 	void				releaseShakeLink(std::shared_ptr<FrameLink> link);
+
+	// XML <e type="setVeil">r, g, b, a, seconds</e> and
+	// <e type="setVeil2">r, g, b, a, frames</e>: lays a colour over the screen (a is
+	// the opacity, 0-255). setVeil2 works like setZoom2/setShake2: it lasts a number
+	// of the animation's frames, or until the animation ends when none is given.
+	// Like setZoom, only the hero the human is playing does it.
+	//
+	// <e type="setRoundVeil">r, g, b, a, seconds</e> and setRoundVeil2 (frames) are
+	// the same with a circle instead of a fade: it starts as a point on the hero,
+	// grows until the whole screen is covered, and shrinks back to nothing at the end.
+	void				setVeil(const string& args) { applyVeilTag(args, false); }
+	void				setRoundVeil(const string& args) { applyVeilTag(args, true); }
+	void				applyVeilTag(const string& args, bool round);
+	void				setVeilUntil(ccColor4B color, std::shared_ptr<FrameLink> link, bool round);
+	void				releaseVeilLink(std::shared_ptr<FrameLink> link);
 	// void				setItemEffect(const string &type);
 	void				setDamgeEffect(const string& type);
 	void				setMonAttack(int skillNum);

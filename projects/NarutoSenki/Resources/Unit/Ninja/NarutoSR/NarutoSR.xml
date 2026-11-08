@@ -449,6 +449,9 @@
 			<f>NarutoSR_Skill14_02</f>
 			<f>NarutoSR_Skill14_03</f>
 			<f>NarutoSR_Skill14_12</f>
+			<e type="setRoundVeil2">110, 0, 0, 120</e>
+			<e type="setShake2">7</e>
+			<e type="setZoom2">1.25</e>
 			<f>NarutoSR_Skill14_04</f>
 			<e type="setAttackBox">ac_hit</e>
 			<e type="setDSound">Audio/Effect/damage_l.ogg</e>

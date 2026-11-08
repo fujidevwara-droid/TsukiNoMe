@@ -1019,6 +1019,7 @@ void CharacterBase::acceptAttack(Ref* object)
 }
 
 static bool parseAmountAndFrames(const string& args, float& amount, int& frames); // defined with setShake()
+static bool parseVeilArgs(const string& args, ccColor4B& color, float& extra, bool& hasExtra); // defined with setVeil()
 
 FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fps, bool isLoop, bool isReturnToIdle)
 {
@@ -1040,7 +1041,7 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 	struct FrameBound
 	{
 		std::shared_ptr<FrameLink> link;
-		bool isShake;
+		enum Kind { Zoom, Shake, Veil } kind;
 		int framesLeft; // -1: until the animation ends
 		float startedAt;
 	};
@@ -1052,8 +1053,13 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 		// If the animation is cut short the end step never runs, so the effect also
 		// stops by itself, after generously more than the animation was meant to take.
 		b.link->failsafe = 2.0f * (elapsed - b.startedAt) + 0.5f;
-		auto call = b.isShake ? CallFunc::create(std::bind(&CharacterBase::releaseShakeLink, this, b.link))
-							  : CallFunc::create(std::bind(&CharacterBase::releaseZoomLink, this, b.link));
+		FiniteTimeAction* call = nullptr;
+		if (b.kind == FrameBound::Shake)
+			call = CallFunc::create(std::bind(&CharacterBase::releaseShakeLink, this, b.link));
+		else if (b.kind == FrameBound::Veil)
+			call = CallFunc::create(std::bind(&CharacterBase::releaseVeilLink, this, b.link));
+		else
+			call = CallFunc::create(std::bind(&CharacterBase::releaseZoomLink, this, b.link));
 		list.pushBack(call);
 	};
 
@@ -1149,8 +1155,34 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 						auto call = isShake ? CallFunc::create(std::bind(&CharacterBase::setShakeUntil, this, amount, link))
 											: CallFunc::create(std::bind(&CharacterBase::setZoomUntil, this, amount, link));
 						list.pushBack(call);
-						bound.push_back({ link, isShake, frames, elapsed });
+						bound.push_back({ link, isShake ? FrameBound::Shake : FrameBound::Zoom, frames, elapsed });
 					}
+				}
+				else if (key == "setVeil2" || key == "setRoundVeil2")
+				{
+					const bool round = key == "setRoundVeil2";
+					ccColor4B color = ccc4(0, 0, 0, 0);
+					float extra = 0.0f;
+					bool hasExtra = false;
+					if (parseVeilArgs(keyValue, color, extra, hasExtra))
+					{
+						// No number (or 0) after the colour: until the animation ends.
+						int frames = (hasExtra && extra >= 1.0f) ? static_cast<int>(extra) : -1;
+						auto link = std::make_shared<FrameLink>();
+						auto call = CallFunc::create(std::bind(&CharacterBase::setVeilUntil, this, color, link, round));
+						list.pushBack(call);
+						bound.push_back({ link, FrameBound::Veil, frames, elapsed });
+					}
+				}
+				else if (key == "setVeil")
+				{
+					auto call = CallFunc::create(std::bind(&CharacterBase::setVeil, this, keyValue));
+					list.pushBack(call);
+				}
+				else if (key == "setRoundVeil")
+				{
+					auto call = CallFunc::create(std::bind(&CharacterBase::setRoundVeil, this, keyValue));
+					list.pushBack(call);
 				}
 				else if (key == "setShake")
 				{
@@ -1790,6 +1822,56 @@ void CharacterBase::setZoom(const string& args)
 	in >> seconds;
 
 	getGameLayer()->zoomCamera(factor, seconds);
+}
+
+// "<r>, <g>, <b>, <a>[, <extra>]": the colour (0-255 each, a is the opacity) and an
+// optional last number (seconds for setVeil, frames for setVeil2). Commas and
+// spaces both just separate the values.
+static bool parseVeilArgs(const string& args, ccColor4B& color, float& extra, bool& hasExtra)
+{
+	string cleaned = args;
+	std::replace(cleaned.begin(), cleaned.end(), ',', ' ');
+	std::istringstream in(cleaned);
+
+	int r = 0, g = 0, b = 0, a = 0;
+	if (!(in >> r >> g >> b >> a))
+		return false;
+
+	auto clamp255 = [](int v) { return (GLubyte)(std::min)((std::max)(v, 0), 255); };
+	color = ccc4(clamp255(r), clamp255(g), clamp255(b), clamp255(a));
+
+	hasExtra = static_cast<bool>(in >> extra);
+	return true;
+}
+
+void CharacterBase::applyVeilTag(const string& args, bool round)
+{
+	// Only the hero the human is playing tints the screen.
+	if (!isPlayer() && !isActivePlayerBody())
+		return;
+
+	ccColor4B color = ccc4(0, 0, 0, 0);
+	float seconds = 0.5f; // used if the tag gives only a colour
+	bool hasSeconds = false;
+	if (!parseVeilArgs(args, color, seconds, hasSeconds))
+		return;
+	if (!hasSeconds)
+		seconds = 0.5f;
+
+	getGameLayer()->showVeil(color.r, color.g, color.b, color.a, seconds, round);
+}
+
+void CharacterBase::setVeilUntil(ccColor4B color, std::shared_ptr<FrameLink> link, bool round)
+{
+	if (!isPlayer() && !isActivePlayerBody())
+		return;
+	link->id = getGameLayer()->showVeilHeld(color.r, color.g, color.b, color.a, link->failsafe, round);
+}
+
+void CharacterBase::releaseVeilLink(std::shared_ptr<FrameLink> link)
+{
+	if (link->id != 0)
+		getGameLayer()->releaseVeil(link->id);
 }
 
 void CharacterBase::setSkillEffect(const string& type)

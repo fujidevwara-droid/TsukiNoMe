@@ -594,14 +594,13 @@ namespace CocosDenshion
 
     void SimpleAudioEngine::stopAllEffects()
     {
-		EffectsMap::iterator iter = s_effects.begin();
-
-		if (iter != s_effects.end())
-	    {
-			checkALError("stopAllEffects:init");
-	        alSourceStop(iter->second->source);
-			checkALError("stopAllEffects:alSourceStop");
-	    }
+		// Stop every loaded effect, not just the first one in the map.
+		checkALError("stopAllEffects:init");
+		for (EffectsMap::iterator iter = s_effects.begin(); iter != s_effects.end(); ++iter)
+		{
+			alSourceStop(iter->second->source);
+		}
+		checkALError("stopAllEffects:alSourceStop");
     }
 
 }

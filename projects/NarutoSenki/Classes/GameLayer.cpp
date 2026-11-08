@@ -666,14 +666,87 @@ void GameLayer::applyShake()
 	}
 }
 
+void GameLayer::applyVeil()
+{
+	if (!_veil.isActive())
+	{
+		if (_veilLayer)
+			_veilLayer->setVisible(false);
+		if (_roundVeilNode)
+			_roundVeilNode->setVisible(false);
+		return;
+	}
+
+	// Same scene as this layer, drawn after it (same order, added later) and
+	// before the HUD, so the buttons are not tinted.
+	auto scene = getParent();
+	if (!scene)
+		return;
+
+	if (!_veil.isRound())
+	{
+		if (_roundVeilNode)
+			_roundVeilNode->setVisible(false);
+
+		if (!_veilLayer)
+		{
+			_veilLayer = LayerColor::create(ccc4(0, 0, 0, 0), winSize.width, winSize.height);
+			scene->addChild(_veilLayer, kGameLayerOrder);
+		}
+
+		_veilLayer->setColor(ccc3(_veil.red(), _veil.green(), _veil.blue()));
+		_veilLayer->setOpacity(static_cast<GLubyte>(_veil.opacity()));
+		_veilLayer->setVisible(true);
+		return;
+	}
+
+	// Round veil: a circle centred on the hero the human plays (it follows the
+	// hero as the camera and the hero move), grown to cover the whole screen.
+	if (_veilLayer)
+		_veilLayer->setVisible(false);
+
+	if (!_roundVeilNode)
+	{
+		_roundVeilNode = CCDrawNode::create();
+		_roundVeilNode->setBlendFunc(ccBlendFunc{ GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA });
+		scene->addChild(_roundVeilNode, kGameLayerOrder);
+	}
+
+	Vec2 center(winSize.width / 2, winSize.height / 2);
+	if (currentPlayer)
+	{
+		const Size size = currentPlayer->getContentSize();
+		center = scene->convertToNodeSpace(currentPlayer->convertToWorldSpace(Vec2(size.width / 2, size.height / 2)));
+	}
+
+	// The radius that reaches the farthest corner, so a full circle covers
+	// everything (plus some room for a screen shake moving the scene about).
+	const Vec2 corners[4] = { Vec2(0, 0), Vec2(winSize.width, 0), Vec2(0, winSize.height), Vec2(winSize.width, winSize.height) };
+	float fullRadius = 0.0f;
+	for (const Vec2 &corner : corners)
+		fullRadius = (std::max)(fullRadius, (corner - center).getLength());
+	fullRadius += 48.0f;
+
+	const float radius = fullRadius * _veil.radiusFraction();
+	_roundVeilNode->clear();
+	if (radius > 0.5f)
+	{
+		_roundVeilNode->drawDot(center, radius,
+			ccc4f(_veil.red() / 255.0f, _veil.green() / 255.0f, _veil.blue() / 255.0f, _veil.opacity() / 255.0f));
+	}
+	_roundVeilNode->setVisible(true);
+}
+
 void GameLayer::updateViewPoint(float dt)
 {
 	// Advances with the layer's own scheduler, so it holds still while an ougi
 	// cut-in has the layer paused.
 	_zoom.update(dt);
 	_shake.update(dt);
+	_veil.update(dt);
 	_battleRuntimeSystem->updateViewPoint(this);
 	applyShake();
+	applyVeil();
 }
 
 void GameLayer::setTowerState(int charId)

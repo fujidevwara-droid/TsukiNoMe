@@ -28,6 +28,7 @@
 
 #include "Systems/CameraZoom.hpp"
 #include "Systems/ScreenShake.hpp"
+#include "Systems/ScreenVeil.hpp"
 
 class BGLayer;
 class CharacterBase;
@@ -184,6 +185,18 @@ public:
 	int shakeScreenHeld(float strength, float failsafeSeconds) { return _shake.triggerHeld(strength, failsafeSeconds); }
 	void releaseShake(int id) { _shake.release(id); }
 	void applyShake();
+
+	// Screen veil (see Systems/ScreenVeil.hpp): from the XML tags setVeil/setVeil2
+	// (a fading colour) and setRoundVeil/setRoundVeil2 (a circle that grows out of
+	// the human's hero until it covers the screen) through CharacterBase.
+	// Drawn between the game world and the HUD, so the buttons stay clear.
+	ScreenVeil _veil;
+	LayerColor *_veilLayer = nullptr;
+	CCDrawNode *_roundVeilNode = nullptr;
+	void showVeil(int r, int g, int b, int a, float seconds, bool round = false) { _veil.trigger(r, g, b, a, seconds, round); }
+	int showVeilHeld(int r, int g, int b, int a, float failsafeSeconds, bool round = false) { return _veil.triggerHeld(r, g, b, a, failsafeSeconds, round); }
+	void releaseVeil(int id) { _veil.release(id); }
+	void applyVeil();
 
 	// Arcade "next stage": the results screen sets these and leaves through
 	// onLeft(), which then starts the next match directly instead of handing

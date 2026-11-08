@@ -2,6 +2,7 @@
 #include "MyUtils/CMD5Checksum.h"
 #include "MyUtils/UnlockRequirements.hpp"
 #include <set>
+#include "cocos-ext.h"
 #include "Utils/Cocos2dxHelper.hpp"
 #if (CC_TARGET_PLATFORM == CC_PLATFORM_ANDROID)
 #include "../../../cocos2dx/platform/android/jni/JniHelper.h"
@@ -848,6 +849,25 @@ void KTools::setNodeGrayscale(CCNode *node, bool enable)
 		: CCShaderCache::sharedShaderCache()->programForKey(kCCShader_PositionTextureColor);
 
 	// A failed compile leaves the node as it was rather than blank.
-	if (program != nullptr)
-		node->setShaderProgram(program);
+	if (program == nullptr)
+		return;
+
+	node->setShaderProgram(program);
+
+	// A Button swaps between its normal, pressed and disabled renderers, which
+	// are sibling sprites under the button. Holding or clicking it shows the
+	// pressed one, so the program has to be on all of them or a greyscale
+	// portrait turns colour for as long as it is pressed.
+	if (CCNode *parent = node->getParent())
+	{
+		if (dynamic_cast<ui::Widget *>(parent))
+		{
+			CCObject *child = nullptr;
+			CCARRAY_FOREACH(parent->getChildren(), child)
+			{
+				if (auto sprite = dynamic_cast<CCSprite *>(child))
+					sprite->setShaderProgram(program);
+			}
+		}
+	}
 }
