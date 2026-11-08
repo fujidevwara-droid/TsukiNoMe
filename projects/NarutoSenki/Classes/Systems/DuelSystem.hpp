@@ -965,6 +965,13 @@ private:
 		hud->initGearButton(key);
 		hud->updateSkillButtons();
 		hud->resetSkillButtons();
+
+		// CharacterBase::dead() blanks the HUD's HP bar (opacity 0, label "0") for
+		// the player, and only Hero::reborn() turns it back on. Duels run with
+		// reborn off, so the successor has to bring the bar back itself, or it
+		// keeps showing the dead hero's empty bar instead of tracking the new one.
+		if (hud->status_hpbar)
+			hud->status_hpbar->setOpacity(255);
 		_owner->setHPLose(hero->getHpPercent());
 	}
 

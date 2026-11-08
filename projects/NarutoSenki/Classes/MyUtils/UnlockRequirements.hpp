@@ -37,14 +37,15 @@ namespace Unlocks
 		std::vector<Goal> goals;    // ArcadeRounds / RegularWins
 	};
 
-	// Add a line here to gate a hero. The two entries below belong to heroes
-	// this build does not ship (Madara, NarutoSR), so they are kept as
-	// documentation of the available rule shapes rather than active rules.
+	// Add a line here to gate a hero. Madara is not shipped in this build, so
+	// its entry stays commented out as documentation of the rule shapes.
+	// NarutoSR is a skin of Naruto on the select screen and unlocks once
+	// Naruto has reached Arcade stage 20.
 	inline const std::vector<Rule> &rules()
 	{
 		static const std::vector<Rule> table = {
 			// { HeroEnum::Madara,   Kind::DefeatArcadeBoss },
-			// { HeroEnum::NarutoSR, Kind::ArcadeRounds, nullptr, 0, { { HeroEnum::Naruto, 20 } } },
+			{ HeroEnum::NarutoSR, Kind::ArcadeRounds, nullptr, 0, { { HeroEnum::Naruto, 20 } } },
 		};
 		return table;
 	}

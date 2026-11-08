@@ -21,9 +21,10 @@ public:
 	static constexpr float kMinFactor = 0.5f;
 	static constexpr float kMaxFactor = 4.0f;
 
-	// Starts a zoom, or retargets one that is already running. A running zoom keeps
-	// the scale it has reached and eases on from there, so triggering again never
-	// makes the picture jump.
+	// Starts a zoom. If one is already running (or still returning to normal), the new
+	// one simply overrides it: the picture eases from whatever scale it is at right
+	// now to the new factor, so there is never a jump. E.g. at 1.5x, triggering 1.25
+	// eases from 1.5x down to 1.25x (of the normal view), it does not snap.
 	// Returns a number that identifies this zoom: release() only acts on the zoom it
 	// was given the number of, so a late release from an older animation cannot cut
 	// a newer zoom short.
@@ -32,19 +33,13 @@ public:
 		factor = (std::min)((std::max)(factor, kMinFactor), kMaxFactor);
 		holdSeconds = (std::max)(holdSeconds, 0.0f);
 
-		if (_active)
-		{
-			const float reached = scale();
-			const float span = factor - 1.0f;
-			const float weight = std::fabs(span) > 1e-4f ? (reached - 1.0f) / span : 0.0f;
-			_progress = inverseSmooth((std::min)((std::max)(weight, 0.0f), 1.0f));
-		}
-		else
-		{
-			_progress = 0.0f;
-		}
-
-		_peak = factor;
+		// Ease on from the scale and camera blend we are at right now (1 and 0 when idle).
+		_scaleFrom = scale();
+		_weightFrom = weight();
+		_scaleTo = factor;
+		_weightTo = 1.0f;
+		_progress = 0.0f;
+		_returning = false;
 		_holdLeft = holdSeconds;
 		_active = true;
 		return ++_serial;
@@ -58,7 +53,7 @@ public:
 	// The held zoom `id` is over: start returning to normal.
 	void release(int id)
 	{
-		if (_active && id == _serial)
+		if (_active && !_returning && id == _serial)
 			_holdLeft = 0.0f;
 	}
 
@@ -67,40 +62,70 @@ public:
 		if (!_active)
 			return;
 
-		const bool holding = _holdLeft > 0.0f;
-		if (holding)
-			_holdLeft -= dt;
-
 		const float step = dt / kTweenSeconds;
-		_progress = holding ? (std::min)(1.0f, _progress + step) : (std::max)(0.0f, _progress - step);
 
-		if (!holding && _progress <= 0.0f)
-			_active = false; // back to normal
+		if (!_returning)
+		{
+			_holdLeft -= dt;
+			_progress = (std::min)(1.0f, _progress + step);
+			if (_holdLeft <= 0.0f)
+			{
+				// Hold is over: ease from where we are back to the normal view.
+				_scaleFrom = scale();
+				_weightFrom = weight();
+				_scaleTo = 1.0f;
+				_weightTo = 0.0f;
+				_progress = 0.0f;
+				_returning = true;
+			}
+			return;
+		}
+
+		_progress = (std::min)(1.0f, _progress + step);
+		if (_progress >= 1.0f)
+			reset(); // back to normal
 	}
 
 	bool isActive() const { return _active; }
 
-	// 0 = camera as it normally is, 1 = fully zoomed (eased).
-	float weight() const { return smooth(_progress); }
+	// 0 = camera as it normally is, 1 = camera fully on the zoomed view (eased).
+	// Stays at 1 while one zoom factor eases into another.
+	float weight() const
+	{
+		if (!_active)
+			return 0.0f;
+		const float e = smooth(_progress);
+		return _weightFrom + (_weightTo - _weightFrom) * e;
+	}
 
 	// The scale to draw the world at: 1 when not zoomed.
-	float scale() const { return _active ? 1.0f + (_peak - 1.0f) * weight() : 1.0f; }
+	float scale() const
+	{
+		if (!_active)
+			return 1.0f;
+		const float e = smooth(_progress);
+		return _scaleFrom + (_scaleTo - _scaleFrom) * e;
+	}
 
 	void reset()
 	{
 		_active = false;
+		_returning = false;
 		_progress = 0.0f;
 		_holdLeft = 0.0f;
+		_scaleFrom = _scaleTo = 1.0f;
+		_weightFrom = _weightTo = 0.0f;
 	}
 
 private:
-	// Smoothstep, and its inverse (used to keep the picture steady on a retarget).
+	// Smoothstep.
 	static float smooth(float x) { return x * x * (3.0f - 2.0f * x); }
-	static float inverseSmooth(float y) { return 0.5f - std::sin(std::asin(1.0f - 2.0f * y) / 3.0f); }
 
 	bool _active = false;
-	float _peak = 1.0f;
-	float _progress = 0.0f; // 0..1, moves linearly; weight() eases it
+	bool _returning = false;
+	float _scaleFrom = 1.0f, _scaleTo = 1.0f;
+	float _weightFrom = 0.0f, _weightTo = 0.0f;
+	float _progress = 0.0f; // 0..1, moves linearly; smooth() eases it
 	float _holdLeft = 0.0f;
 	int _serial = 0;
 };

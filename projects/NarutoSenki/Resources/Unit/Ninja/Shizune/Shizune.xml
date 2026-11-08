@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="utf-8"?>
+ <unit>
+   
+    <action name="Idle">
+	 <data>
+	    <p type="attackType">Shizune</p>
+        <p type="attackValue">9000</p>
+        <p type="attackRangeX">55</p>
+        <p type="attackRangeY">70</p>
+        <p type="cd">224</p>
+      </data>
+      <frame>
+        <f>Shizune_Idle_01</f>     
+        <f>Shizune_Idle_02</f>      
+        <f>Shizune_Idle_03</f>        
+        <f>Shizune_Idle_04</f>                
+      </frame>
+    </action>
+   
+    <action name="Walk">
+      <frame>
+        <f>Shizune_Walk_01</f>
+        <f>Shizune_Walk_02</f>
+        <f>Shizune_Walk_03</f>
+        <f>Shizune_Walk_04</f>
+        <f>Shizune_Walk_05</f>
+        <f>Shizune_Walk_06</f>
+      </frame>
+    </action>
+   
+    <action name="Hurt">
+      <frame>
+        <e type="setMove">32</e>
+        <f>Shizune_Hurt_01</f>
+        <f>Shizune_Hurt_02</f>
+        <e type="setSound">Audio/Shizune/Shizune_hurt.ogg</e>
+      </frame>
+    </action>
+   
+   <action name="AirHurt">
+     <frame>
+         <f>Shizune_AirHurt_01</f>
+     </frame>
+   </action>
+   
+   <action name="KnockDown">
+      <frame>
+          <f>Shizune_KnockDown_01</f>
+          <e type="setDelay">10</e>
+          <f>Shizune_KnockDown_02</f>
+          <f>Shizune_KnockDown_03</f>
+          <e type="setDelay">60</e>
+          <f>Shizune_KnockDown_03</f>
+          <f>Shizune_KnockDown_04</f>
+          <f>Shizune_KnockDown_05</f>
+          <f>Shizune_KnockDown_06</f>
+      </frame>
+    </action>
+   
+    <action name="Float">
+      <frame>
+          <f>Shizune_Hurt_01</f>
+          <e type="setDelay">10</e>
+          <f>Shizune_Hurt_02</f>       
+      </frame>
+    </action>
+   
+    <action name="Dead">
+      <frame>
+          <f>Shizune_KnockDown_01</f>
+          <f>Shizune_KnockDown_02</f>
+          <f>Shizune_KnockDown_03</f>
+          <e type="setSound">Audio/Shizune/Shizune_dead.ogg</e>
+      </frame>
+    </action>
+   
+    <action name="nAttack">
+      <data>
+	    <p type="attackType">nAttack</p>
+        <p type="attackValue">80</p>
+        <p type="attackRangeX">0</p>
+        <p type="attackRangeY">16</p>
+        <p type="cd">0</p>
+      </data>
+      <frame>
+        <f>Shizune_NAttack_01</f>
+        <f>Shizune_NAttack_02</f>
+        <f>Shizune_NAttack_03</f>
+        <e type="setAttackBox">n_hit</e>
+        <e type="setSound">Audio/Effect/combo1.ogg</e>
+        <f>Shizune_NAttack_04</f>
+        <e type="setDelay">5</e>
+        <f>Shizune_NAttack_05</f>
+        <e type="setMove">8</e>
+        <e type="setDelay">5</e>
+        <f>Shizune_NAttack_06</f>
+        <e type="setAttackBox">n_hit</e>
+        <e type="setSound">Audio/Effect/combo2.ogg</e>
+        <f>Shizune_NAttack_07</f>
+        <f>Shizune_NAttack_08</f>
+        <f>Shizune_NAttack_09</f>
+        <e type="setMove">16</e>
+        <f>Shizune_NAttack_10</f>            
+        <e type="setAttackBox">l_hit</e>
+        <e type="setSound">Audio/Shizune/Shizune_combo.ogg</e>     
+      </frame>
+    </action>
+
+   <action name="skill01">
+     <data>
+	   <p type="attackType">hBuff</p>
+       <p type="attackValue">360</p>
+       <p type="attackRangeX">16</p>
+       <p type="attackRangeY">32</p>
+       <p type="cd">15</p>
+     </data>
+     <frame>
+        <e type="setSound">Audio/Shizune/Shizune_skill1.ogg</e>
+        <f>Shizune_Skill01_01</f>
+        <f>Shizune_Skill01_02</f>
+        <f>Shizune_Skill01_03</f>
+        <f>Shizune_Skill01_04</f>
+        <f>Shizune_Skill01_05</f>    
+        <e type="setSound">Audio/Shizune/healing.ogg</e>  
+        <f>Shizune_Skill01_06</f>
+        <f>Shizune_Skill01_07</f>
+        <f>Shizune_Skill01_08</f>
+        <f>Shizune_Skill01_09</f>
+        <f>Shizune_Skill01_10</f>
+        <f>Shizune_Skill01_11</f>
+        <f>Shizune_Skill01_12</f>
+        <e type="setBuff">600</e>
+     </frame>
+   </action>
+
+    <action name="skill02">
+        <data>
+		    <p type="attackType">Summon</p>
+            <p type="attackValue">460</p>
+            <p type="attackRangeX">32</p>
+            <p type="attackRangeY">32</p>
+            <p type="cd">10</p>
+        </data>
+        <frame>
+        <e type="setSound">Audio/Shizune/Shizune_skill2.ogg</e>
+        <f>Shizune_Skill02_01</f>
+        <f>Shizune_Skill02_02</f>
+        <f>Shizune_Skill02_03</f>
+        <e type="setSkillEffect">Kujiyose</e>
+        <e type="setSkillEffect">smk</e>
+        <e type="setMon">TonTon</e>
+        <e type="setDelay">30</e>
+        </frame>
+    </action>
+
+    <action name="skill03">
+        <data>
+			<p type="attackType">cAttack</p>
+            <p type="attackValue">460</p>
+            <p type="attackRangeX">48</p>
+            <p type="attackRangeY">32</p>
+            <p type="cd">25</p>
+        </data>
+        <frame>
+        <e type="setSound">Audio/Shizune/Shizune_skill3.ogg</e>
+        <f>Shizune_Skill03_01</f>
+        <e type="setJump">false</e>       
+        <f>Shizune_Skill03_02</f>
+        <f>Shizune_Skill03_03</f>
+        <e type="setMon">ShizuneSenbon</e>
+        <f>Shizune_Skill03_04</f>        
+        <f>Shizune_Skill03_05</f>    
+        <e type="setDelay">5</e>            
+        <f>Shizune_Skill03_06</f>       
+        <e type="setDelay">30</e>
+        <f>Shizune_Skill03_07</f>
+        </frame>
+    </action>
+
+   <action name="skill04">
+     <data>
+       <p type="attackType">aAttack</p>
+       <p type="attackValue">560</p>
+       <p type="attackRangeX">48</p>
+       <p type="attackRangeY">32</p>
+       <p type="cd">1</p>
+     </data>
+     <frame>
+        <e type="setSound">Audio/Effect/ougis.ogg</e>
+        <e type="setSound">Audio/Shizune/Shizune_skill4.ogg</e>
+        <f>Shizune_Skill04_01</f>
+        <f>Shizune_Skill04_02</f>
+        <f>Shizune_Skill04_03</f>
+        <f>Shizune_Skill04_04</f>
+        <f>Shizune_Skill04_05</f>        
+        <e type="setMon">ToxicFume</e>
+        <e type="setDelay">80</e>
+        <f>Shizune_Skill04_06</f>
+     </frame>
+   </action>
+
+    <action name="skill05">
+        <data>
+        <p type="attackType">aAttack</p>
+        <p type="attackValue">560</p>
+        <p type="attackRangeX">32</p>
+        <p type="attackRangeY">48</p>
+        <p type="cd">1</p>
+        </data>
+         <frame>
+        <e type="setCommand">setInvincible</e>
+        <e type="setSound">Audio/Effect/ougis.ogg</e>
+        <e type="setOugis">10</e>
+        <f>Shizune_Skill02_01</f>
+        <f>Shizune_Skill02_02</f>
+        <f>Shizune_Skill02_03</f>
+        <e type="setSound">Audio/Shizune/Shizune_skill5.ogg</e>
+        <e type="setSkillEffect">Kujiyose</e>
+        <e type="setSkillEffect">smk</e>
+        <e type="setMon">TonTon</e>
+        <e type="setDelay">30</e>
+        <f>Shizune_Skill05_01</f>
+        <f>Shizune_Skill05_02</f>        
+        <e type="setMove">80</e>
+        <f>Shizune_Skill05_03</f>
+        <f>Shizune_Skill05_04</f>
+        <e type="setSound">Audio/Shizune/Shizune_skill5_1.ogg</e>
+        <e type="setSound">Audio/Effect/blade_damage2.ogg</e>
+        <e type="setAttackBox">f_hit</e>
+        <f>Shizune_Skill05_05</f>
+        <f>Shizune_Skill05_06</f>
+        <f>Shizune_Skill05_07</f>
+        <e type="setJump">false</e>
+        <f>Shizune_Skill05_08</f>
+        <f>Shizune_Skill05_09</f>
+        <f>Shizune_Skill05_10</f>
+        <f>Shizune_Skill05_11</f>
+        <f>Shizune_Skill05_12</f> 
+        <e type="setSound">Audio/Shizune/Shizune_skill5_2.ogg</e>
+        <e type="setMon">Chackra</e>       
+        <f>Shizune_Skill05_13</f>               
+        <f>Shizune_Skill05_14</f>        
+        <f>Shizune_Skill05_15</f>     
+        <e type="setDelay">20</e>   
+        <e type="setCommand">reInvincible</e> 
+      </frame>
+    </action>
+    <action name="skill06">
+        <frame></frame>
+    </action>
+    <action name="skill07">
+        <frame></frame>
+    </action>
+    <action name="skill08">
+        <frame></frame>
+    </action>
+    <action name="skill09">
+        <frame></frame>
+    </action>
+   
+</unit>

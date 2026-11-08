@@ -39,7 +39,7 @@ function SelectLayer:init()
     end
     self.enableHardCore = false
 
-    self.pageNum = 3
+    self.pageNum = 4
 
     self._comLabel1 = nil
     self._comLabel2 = nil
@@ -184,6 +184,7 @@ function SelectLayer:init()
         local select_btn = SelectButton:create(charName .. '_select.png')
         select_btn._selectLayer = self
         select_btn._charName = charName
+        select_btn._baseCharName = charName
         select_btn:refreshLockedVisual()
         --           -- LAYOUT --
         -- --- LEFT ---        --- RIGHT ---
@@ -273,6 +274,22 @@ function SelectLayer:init()
     menu2:setAnchorPoint(0, 0)
     menu2:setPosition(width - 35, 96)
     self:addChild(menu2, 5)
+
+    -- Skin switch button (only visible for heroes that have a skin)
+    local skin_switch_btn = ui.newImageMenuItem({
+        image = '#switch_btn.png',
+        listener = handler(self, SelectLayer.onSkinSwitchButtonClick)
+    })
+
+    local skinMenu = ui.newMenu({skin_switch_btn})
+    skinMenu:setAnchorPoint(0, 0)
+    skinMenu:setPosition(width - 25, 185)
+    self:addChild(skinMenu, 5)
+
+    self._skinSwitchBtn = skin_switch_btn
+    self._skinMenu = skinMenu
+    self._selectedBtn = selectBtn
+    self:refreshSkinSwitchButton()
 
     -- Desktop return button
     if _G.platform == 'desktop' then
@@ -459,6 +476,74 @@ function SelectLayer:onPageButtonClick(index)
     end
 end
 
+-- Skin switch button. The blink animates the renderer's opacity rather than
+-- hiding the item, so the touch hitbox is never lost.
+function SelectLayer:startSkinSwitchBlink()
+    if not self._skin_switch_target then
+        if self._skinSwitchBtn and self._skinSwitchBtn.getVirtualRenderer then
+            self._skin_switch_target = self._skinSwitchBtn:getVirtualRenderer()
+        else
+            self._skin_switch_target = self._skinSwitchBtn
+        end
+    end
+
+    if self._skin_switch_target then
+        self._skin_switch_target:stopAllActions()
+        local fadeOut = CCFadeTo:create(0.3, 0)
+        local fadeIn = CCFadeTo:create(0.3, 255)
+        local seq = CCSequence:createWithTwoActions(fadeOut, fadeIn)
+        self._skin_switch_target:runAction(CCRepeatForever:create(seq))
+    end
+end
+
+function SelectLayer:stopSkinSwitchBlink()
+    if self._skin_switch_target then
+        self._skin_switch_target:stopAllActions()
+        self._skin_switch_target:setOpacity(255)
+    end
+end
+
+function SelectLayer:refreshSkinSwitchButton()
+    if not self._skinMenu or not self._selectedBtn then return end
+
+    if self._selectedBtn.hasSkin and self._selectedBtn:hasSkin() then
+        self._skinMenu:setVisible(true)
+        self:startSkinSwitchBlink()
+    else
+        self:stopSkinSwitchBlink()
+        self._skinMenu:setVisible(false)
+    end
+end
+
+function SelectLayer:onSkinSwitchButtonClick()
+    if not self._selectedBtn or not self._selectedBtn.hasSkin or
+        not self._selectedBtn:hasSkin() then return end
+
+    -- Once the player's hero is locked in, the skin can no longer change.
+    if self._playerSelect and not self.enableCustomSelect then return end
+
+    audio.playSound('Audio/Menu/chang_btn.ogg')
+
+    self._selectedBtn:cycleSkin()
+    self.selectHero = self._selectedBtn._charName
+
+    if self._heroHalfImage then
+        self._heroHalfImage:removeFromParent()
+        local charName = '#' .. self.selectHero
+        self._heroHalfImage = display.newSprite(charName .. '_half.png', 10, 10)
+        self._heroHalfImage:setAnchorPoint(CCPoint(0, 0))
+        self:addChild(self._heroHalfImage, 1)
+    end
+
+    if self._heroName then
+        self._heroName:removeFromParent()
+        local charName = '#' .. self.selectHero
+        self._heroName = display.newSprite(charName .. '_font.png', 100, 20)
+        self._heroName:setAnchorPoint(CCPoint(0.5, 0))
+        self:addChild(self._heroName, 5)
+    end
+end
+
 function SelectLayer:setSelected(btn)
     if self._selectImg then
         self._selectImg:setPosition(CCPoint(btn:getPositionX() - 2,
@@ -468,6 +553,8 @@ function SelectLayer:setSelected(btn)
     if not self.enableCustomSelect and self._playerSelect then return end
 
     self.selectHero = btn._charName
+    self._selectedBtn = btn
+    self:refreshSkinSwitchButton()
 
     local fd = CCFadeOut:create(1.0)
     local seq = CCRepeatForever:create(transition.sequence({fd, fd:reverse()}))

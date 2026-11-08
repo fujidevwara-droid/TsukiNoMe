@@ -1105,6 +1105,11 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 					auto call = CallFunc::create(std::bind(&CharacterBase::setAttackBox, this, keyValue));
 					list.pushBack(call);
 				}
+				else if (key == "setPoison")
+				{
+					auto call = CallFunc::create(std::bind(&CharacterBase::setPoison, this, keyValue));
+					list.pushBack(call);
+				}
 				else if (key == "setSound")
 				{
 					auto call = CallFunc::create(std::bind(&CharacterBase::setSound, this, keyValue));
@@ -1601,6 +1606,11 @@ void CharacterBase::setDamage(CharacterBase* attacker, const string& effectType,
 			setDamgeEffect(effectType);
 		}
 	}
+
+	// Poison: a hit from an attacker with a live setPoison() arm starts the
+	// DOT. The DOT's own damage passes through here too, hence the guard.
+	if (attacker->_pendingPoisonValue > 0 && !_inPoisonTick)
+		applyPoisonFrom(attacker, currentAttacker);
 }
 
 void CharacterBase::setCoinDisplay(int num)
@@ -2876,6 +2886,112 @@ void CharacterBase::removeLostBlood(float dt)
 	unschedule(schedule_selector(CharacterBase::lostBlood));
 }
 
+// Arms poison on the attacker ("this"). Accepts "<damage>" (3s default) or
+// "<damage>, <seconds>". The arm lasts only kPoisonArmSeconds: long enough
+// for the attack's hit window, short enough that it cannot leak into a later
+// hit. Re-arming (e.g. a multi-hit move) simply refreshes the window.
+void CharacterBase::setPoison(const string& value)
+{
+	string damagePart = value;
+	float seconds = 3.0f;
+
+	auto commaPos = value.find(',');
+	if (commaPos != string::npos)
+	{
+		damagePart = value.substr(0, commaPos);
+		float parsed = (float)atof(value.substr(commaPos + 1).c_str());
+		if (parsed > 0.0f)
+			seconds = parsed;
+	}
+
+	_pendingPoisonValue = (uint32_t)(std::max)(0, atoi(damagePart.c_str()));
+	_pendingPoisonSeconds = seconds;
+
+	unschedule(schedule_selector(CharacterBase::expireArmedPoison));
+	if (_pendingPoisonValue > 0)
+		scheduleOnce(schedule_selector(CharacterBase::expireArmedPoison), kPoisonArmSeconds);
+}
+
+void CharacterBase::expireArmedPoison(float dt)
+{
+	_pendingPoisonValue = 0;
+	_pendingPoisonSeconds = 3.0f;
+}
+
+// Starts or refreshes the DOT on "this" (the victim). A weaker poison never
+// replaces a stronger one that is still running.
+void CharacterBase::applyPoisonFrom(CharacterBase* attacker, CharacterBase* credit)
+{
+	if (isTower() || _state == State::DEAD)
+		return;
+
+	const uint32_t value = attacker->_pendingPoisonValue;
+	if (poisonTicksLeft > 0 && value < poisonTickValue)
+		return;
+
+	poisonAttackerId = credit->getCharId();
+	poisonTickValue = value;
+	poisonTicksLeft = (std::max)(1, (int)std::lround(attacker->_pendingPoisonSeconds / kPoisonTickSeconds));
+
+	unschedule(schedule_selector(CharacterBase::poisonTick));
+	schedule(schedule_selector(CharacterBase::poisonTick), kPoisonTickSeconds);
+}
+
+// One DOT tick: damages "this" credited to the poisoner, then counts down.
+void CharacterBase::poisonTick(float dt)
+{
+	if (poisonAttackerId == -1 || poisonTickValue == 0 || _state == State::DEAD)
+	{
+		removePoison(dt);
+		return;
+	}
+
+	CharacterBase* poisoner = nullptr;
+	for (auto hero : getGameLayer()->_CharacterArray)
+	{
+		if (hero->getCharId() == poisonAttackerId)
+		{
+			poisoner = hero;
+			break;
+		}
+	}
+
+	if (!poisoner)
+	{
+		removePoison(dt);
+		return;
+	}
+
+	_inPoisonTick = true;
+	setDamage(poisoner, "c_hit", poisonTickValue, false);
+	_inPoisonTick = false;
+
+	// The tick itself may have killed us (and cleared the poison).
+	if (_state == State::DEAD || poisonTicksLeft <= 0)
+		return;
+
+	if (_isVisable)
+	{
+		Effect* poisonEffect = Effect::create("Hupo", this);
+		poisonEffect->setPosition(Vec2(getContentSize().width / 2, getContentSize().height / 2 + 6));
+		addChild(poisonEffect);
+	}
+
+	if (isPlayer())
+		getGameLayer()->setHPLose(getHpPercent());
+
+	if (--poisonTicksLeft <= 0)
+		removePoison(dt);
+}
+
+void CharacterBase::removePoison(float dt)
+{
+	poisonTickValue = 0;
+	poisonTicksLeft = 0;
+	poisonAttackerId = -1;
+	unschedule(schedule_selector(CharacterBase::poisonTick));
+}
+
 void CharacterBase::changeAction()
 {
 }
@@ -3288,7 +3404,8 @@ void CharacterBase::setMon(const string& monName)
 		monster->setPosition(Vec2(_isFlipped ? getPositionX() - 144 : getPositionX() + 144, getPositionY() - 32 + 1));
 		monster->attack(NAttack);
 	}
-	else if (monName == "SansyoBlue")
+	else if (monName == "SansyoBlue" ||
+		monName == "RashomonRed")
 	{
 		monster->setPosition(Vec2(_isFlipped ? getPositionX() - 48 : getPositionX() + 48, getPositionY() - 32 + 2));
 		monster->attack(NAttack);
@@ -3328,7 +3445,9 @@ void CharacterBase::setMon(const string& monName)
 	}
 	else if (monName == "Tuji" ||
 		monName == "Tuji2" ||
-		monName == "Suiji")
+		monName == "Suiji" ||
+		monName == "ShizuneSenbon" ||
+		monName == "Chackra")
 	{
 		monster->setPositionY(getPositionY() - 24);
 		monster->setPositionX(getPositionX() + (_isFlipped ? -64 : 64));
@@ -3382,7 +3501,8 @@ void CharacterBase::setMon(const string& monName)
 		monName == "Smoke" ||
 		monName == "BannShou" ||
 		monName == "Bull" ||
-		monName == "Raintiger")
+		monName == "Raintiger" ||
+		monName == "TonTon")
 	{
 		_monsterArray.push_back(monster);
 		monster->attack(NAttack);
@@ -3399,10 +3519,18 @@ void CharacterBase::setMon(const string& monName)
 		monName == "Sabaku" ||
 		monName == "SandWave" ||
 		monName == "Tsukuyomi" ||
+		monName == "ToxicFume" ||
 		monName == "Shark")
 	{
 		monster->setPosition(Vec2(getPositionX() + (_isFlipped == true ? -48 : 48), getPositionY() - 4));
 		monster->attack(NAttack);
+	}
+	else if (monName == "OrochiIkazuchi" ||
+		monName == "SpinningClone")
+	{
+		monster->setPosition(Vec2(getPositionX() + (_isFlipped ? -128 : 128), getPositionY()));
+		monster->attack(NAttack);
+		monster->setDirectMove(156, 2.0f, false);
 	}
 	else if (monName == "Suijin" ||
 		monName == "BugPillar")
@@ -4683,6 +4811,7 @@ void CharacterBase::dead()
 	}
 
 	removeLostBlood(0.1f);
+	removePoison(0.1f);
 	unschedule(schedule_selector(CharacterBase::stopMove));
 	unschedule(schedule_selector(CharacterBase::setAI));
 	unschedule(schedule_selector(CharacterBase::disableHpBar));

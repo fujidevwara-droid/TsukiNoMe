@@ -15,7 +15,7 @@
 // shake rather than an action on the scene because an action remembers where the
 // scene was when it started and restores that when it ends: two of them running
 // together would leave the screen stuck off-centre. Here a second shake just
-// replaces or is ignored by the first.
+// replaces the first.
 class ScreenShake
 {
 public:
@@ -31,11 +31,7 @@ public:
 		if (strength <= 0.0f || seconds <= 0.0f)
 			return 0;
 
-		// A shake that is already running is only replaced by one at least as strong
-		// as what is left of it, so a light tremor cannot cut a heavy one short.
-		if (_left > 0.0f && strength < amplitude())
-			return 0;
-
+		// A shake that is already running is simply overridden by the new one.
 		_strength = strength;
 		_duration = seconds;
 		_left = seconds;

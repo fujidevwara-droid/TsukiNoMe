@@ -59,6 +59,7 @@ function SelectButton:ctor()
     self._selectLayer = nil
     self._skillLayer = nil
     self._charName = nil
+    self._baseCharName = nil
 end
 
 function SelectButton:create(image)
@@ -136,6 +137,63 @@ function SelectButton:spriteToGrey()
     self:addChild(black)
 end
 
+-- Skin cycling. A value can be a single name ("NarutoSR") or a list of names
+-- for characters with more than one alternate skin. The cycle always includes
+-- the base name as step 0: Naruto -> NarutoSR -> Naruto.
+local skinList = {
+    Naruto = 'NarutoSR'
+}
+
+-- Returns { baseCharName, skin1, skin2, ... } or nil if the hero has no skins.
+local function getSkinCycle(baseCharName)
+    if not baseCharName then return nil end
+    local entry = skinList[baseCharName]
+    if entry == nil then return nil end
+
+    local cycle = {baseCharName}
+    if type(entry) == 'table' then
+        for _, skinName in ipairs(entry) do cycle[#cycle + 1] = skinName end
+    else
+        cycle[#cycle + 1] = entry
+    end
+    return cycle
+end
+
+function SelectButton:hasSkin()
+    return getSkinCycle(self._baseCharName or self._charName) ~= nil
+end
+
+-- Swaps this slot to the next name in its skin cycle (wrapping back to the
+-- base character after the last skin): portrait texture, _charName (so the
+-- unlock check and selection use the right identity), the skin's intro voice
+-- and the locked/grayscale visual.
+function SelectButton:cycleSkin()
+    local base = self._baseCharName or self._charName
+    local cycle = getSkinCycle(base)
+    if cycle == nil then return end
+
+    local currentIdx = 1
+    for i, name in ipairs(cycle) do
+        if name == self._charName then
+            currentIdx = i
+            break
+        end
+    end
+
+    local nextName = cycle[(currentIdx % #cycle) + 1]
+
+    self._charName = nextName
+    self:loadTextures(nextName .. '_select.png', nextName .. '_select.png',
+                      nil, UI_TEX_TYPE_PLIST)
+
+    if save.isVoice() then
+        audio.stopAllSounds()
+        audio.playSound(fmt('Audio/Intro/%s.ogg', self._charName))
+    end
+
+    if self.refreshLockedVisual then self:refreshLockedVisual() end
+end
+
 function SelectButton:isUnlockedCharacter()
     if tools.isHeroUnlocked(self._charName) then return true end
 
@@ -147,7 +205,9 @@ end
 -- Heroes that exist in the roster data but are not playable yet. They are
 -- shown in greyscale (there is nothing to unlock, so no lock overlay) and give
 -- the plain 'LimitedChar' tip instead of the unlock popup.
-local comingSoonList = {}
+local comingSoonList = {
+    madara = true -- on the roster grid, but no sprites or data yet
+}
 
 function ns.addComingSoonCharacter(name)
     if name ~= nil then comingSoonList[string.lower(name)] = true end

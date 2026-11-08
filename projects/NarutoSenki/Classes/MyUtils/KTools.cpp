@@ -169,10 +169,38 @@ void KTools::initTableInDB()
 	sql = "select count(*) from  CharRecord";
 	sqlite3_exec(pDB, sql.c_str(), isExisted, &isExisted_, &errorMsg);
 
-	if (!isExisted_)
+	(void)isExisted_;
+
+	// Insert a CharRecord row for every hero in kHeroList that has none yet.
+	// On a fresh install that is all of them; on an existing save it is only
+	// the heroes added since (names are stored encoded, so decode to compare).
 	{
+		std::set<string> existingNames;
+		char **nameResult = nullptr;
+		int nameRows = 0;
+		int nameCols = 0;
+		sql = "select name from CharRecord";
+		sqlite3_get_table(pDB, sql.c_str(), &nameResult, &nameRows, &nameCols, nullptr);
+		if (nameResult != nullptr)
+		{
+			for (int r = 1; r <= nameRows; ++r)
+			{
+				if (nameResult[r] == nullptr)
+					continue;
+				string stored = nameResult[r];
+				if (stored.empty())
+					continue;
+				decode(stored);
+				existingNames.insert(stored);
+			}
+			sqlite3_free_table(nameResult);
+		}
+
 		for (size_t i = 0; i < kHeroNum; i++)
 		{
+			if (existingNames.count(kHeroList[i]))
+				continue;
+
 			string name = kHeroList[i];
 			int key = rand() % 50 + 40;
 			encode(name, key);

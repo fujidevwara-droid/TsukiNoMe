@@ -162,6 +162,24 @@ public:
 
 	int					lbAttackerId = -1;
 	uint32_t			lostBloodValue;
+
+	// ---- Poison ----------------------------------------------------------
+	// XML: <e type="setPoison">30, 3</e> = 30 damage per tick for 3 seconds.
+	// setPoison() only ARMS the attacker; every victim hit while the arm is
+	// live gets poisoned (so area attacks poison all targets), and the arm
+	// expires by itself so a missed attack cannot poison a later, unrelated hit.
+	static constexpr float kPoisonTickSeconds = 0.5f;	// DOT tick interval
+	static constexpr float kPoisonArmSeconds = 0.6f;	// how long an armed poison stays ready
+
+	// On the attacker:
+	uint32_t			_pendingPoisonValue = 0;		// damage per tick (0 = not armed)
+	float				_pendingPoisonSeconds = 3.0f;	// how long the DOT lasts
+
+	// On the victim:
+	int					poisonAttackerId = -1;			// who gets the credit
+	uint32_t			poisonTickValue = 0;
+	int					poisonTicksLeft = 0;
+	bool				_inPoisonTick = false;			// DOT damage must not re-apply poison
 	int					gearCKRValue;
 	uint32_t			gearRecoverValue;
 
@@ -527,6 +545,13 @@ public:
 
 	void				lostBlood(float dt);
 	void				removeLostBlood(float dt);
+
+	// Poison DOT (see fields above).
+	void				setPoison(const string& value);
+	void				expireArmedPoison(float dt);
+	void				applyPoisonFrom(CharacterBase* attacker, CharacterBase* credit);
+	void				poisonTick(float dt);
+	void				removePoison(float dt);
 
 	virtual void		setAI(float dt);
 	virtual void		setRestore2(float dt);

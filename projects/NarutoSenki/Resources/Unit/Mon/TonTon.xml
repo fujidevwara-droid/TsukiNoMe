@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<unit>
+
+	<action name="Idle">
+		<data>
+			<p type="attackType">InkDragon</p>
+			<p type="attackValue">0</p>
+			<p type="attackRangeX">51</p>
+			<p type="attackRangeY">11</p>
+			<p type="cd">224</p>
+		</data>
+		<frame>
+			<f>TonTon_Idle_01</f>
+			<f>TonTon_Idle_02</f>
+			<f>TonTon_Idle_03</f>
+			<f>TonTon_Idle_04</f>
+		</frame>
+	</action>
+
+	<action name="Walk">
+		<frame>
+			<f>TonTon_Run_01</f>
+		</frame>
+	</action>
+
+	<action name="Hurt">
+		<frame>
+		</frame>
+	</action>
+
+	<action name="AirHurt">
+		<frame>
+
+		</frame>
+	</action>
+
+	<action name="KnockDown">
+		<frame>
+		</frame>
+	</action>
+
+	<action name="Float">
+		<frame>
+		</frame>
+	</action>
+
+	<action name="Dead">
+		<frame>	  
+		  <f>TonTon_Run_01</f>
+		</frame>
+	</action>
+
+	<action name="nAttack">
+		<data>
+			<p type="attackType">aAttack</p>
+			<p type="attackValue">600</p>
+			<p type="attackRangeX">10</p>
+			<p type="attackRangeY">48</p>
+			<p type="cd">0</p>
+		</data>
+		<frame>
+	    	<e type="setSound">Audio/Shizune/tonton01.ogg</e>
+		    <e type="setMove">35</e>
+			<f>TonTon_Run_01</f>
+			<e type="setMove">35</e>            
+            <e type="setAttackBox">bl_hit</e>            
+            <f>TonTon_Run_02</f>
+            <e type="setMove">35</e>
+            <e type="setAttackBox">bl_hit</e>            
+            <f>TonTon_Run_03</f>
+            <e type="setMove">35</e>
+            <e type="setAttackBox">bl_hit</e>            
+            <f>TonTon_Run_04</f>
+            <e type="setMove">35</e>
+            <e type="setAttackBox">bl_hit</e>            
+            <f>TonTon_Run_01</f>
+			<e type="setMove">35</e>          
+            <e type="setAttackBox">bl_hit</e>            
+            <f>TonTon_Run_02</f>
+            <e type="setMove">35</e>
+            <e type="setAttackBox">bl_hit</e>            
+            <f>TonTon_Run_03</f>
+            <e type="setMove">35</e>
+            <e type="setAttackBox">bl_hit</e>            
+            <f>TonTon_Run_04</f>
+            <e type="setMove">35</e>
+            <e type="setAttackBox">bl_hit</e>
+            <e type="setSkillEffect">smk</e>           
+            <e type="setDetonation">0</e>
+		</frame>
+	</action>
+
+</unit>

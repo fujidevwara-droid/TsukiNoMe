@@ -32,9 +32,11 @@ namespace HeroEnum
 	mk_const(RockLee);
 
 	mk_const(Minato);
+	mk_const(Mitsuki);
 	mk_const(Nagato);
 	// Naruto
 	mk_const(Naruto);
+	mk_const(NarutoSR);
 	mk_const(SageNaruto);
 	mk_const(RikudoNaruto);
 
@@ -56,6 +58,7 @@ namespace HeroEnum
 
 	mk_const(Shikamaru);
 	mk_const(Shino);
+	mk_const(Shizune);
 	mk_const(Suigetsu);
 	mk_const(Tenten);
 	mk_const(Tobi);
@@ -66,6 +69,7 @@ namespace HeroEnum
 	mk_const(NarutoClone);
 	mk_const(SageNarutoClone);
 	mk_const(RikudoNarutoClone);
+	mk_const(NarutoSRClone);
 
 	// Guardian
 	// Han, Roshi
