@@ -57,7 +57,7 @@ bool CCStrokeLabel::init()
 		rt->end();
 
 		Texture2D *texture = rt->getSprite()->getTexture();
-		texture->setAliasTexParameters();
+		texture->setAntiAliasTexParameters();
 		m_sprite = Sprite::createWithTexture(rt->getSprite()->getTexture());
 		setContentSize(m_sprite->getContentSize());
 		m_sprite->setPosition(Vec2(0, 0));

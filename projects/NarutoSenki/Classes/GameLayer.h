@@ -29,10 +29,15 @@
 #include "Systems/CameraZoom.hpp"
 #include "Systems/ScreenShake.hpp"
 #include "Systems/ScreenVeil.hpp"
+#include "Systems/ScreenInvert.hpp"
+#include "Systems/Stage.hpp"
 
 class BGLayer;
 class CharacterBase;
 class Hero;
+class InvertCompositor;
+class MapChangeSystem;
+class TrapSystem;
 class Flog;
 class Tower;
 class GameLayer;
@@ -149,14 +154,15 @@ public:
 		float minX;
 		float maxX;
 	};
-	ArenaBounds arenaBounds() const
+	// In GameLayer coordinates, for the given stage (which may sit anywhere along x).
+	ArenaBounds arenaBounds(const Stage &stage) const
 	{
-		const float tile = currentMap->getTileSize().width;
-		const float mapW = currentMap->getMapSize().width * tile;
+		const float tile = stage.tileWidth();
+		const float mapW = stage.pixels().width;
 
 		ArenaBounds bounds = { kArenaWallTiles * tile, mapW - kArenaWallTiles * tile };
 
-		// The duel camera is centred on the map, so the visible slice of the map
+		// The arena camera is centred on the map, so the visible slice of the map
 		// is [camLeft, camLeft + screen width]. Same formula as updateViewPoint().
 		const float viewW = winSize.width;
 		const float camLeft = (mapW - viewW) / 2.0f;
@@ -165,8 +171,62 @@ public:
 			bounds.minX = (std::max)(bounds.minX, camLeft + kArenaEdgeMargin);
 			bounds.maxX = (std::min)(bounds.maxX, camLeft + viewW - kArenaEdgeMargin);
 		}
+
+		bounds.minX += stage.originX;
+		bounds.maxX += stage.originX;
 		return bounds;
 	}
+
+	// Stages (see Systems/Stage.hpp). Stage 0 is the main map, registered by initTileMap().
+	std::vector<std::unique_ptr<Stage>> _stages;
+	const Stage &mainStage() const { return *_stages.front(); }
+	const Stage &stageOf(int id) const
+	{
+		for (const auto &stage : _stages)
+		{
+			if (stage->id == id)
+				return *stage;
+		}
+		return mainStage(); // a stage that is gone: the main one
+	}
+	// The stage of the unit the camera follows.
+	const Stage &observerStage() const;
+	// The stage whose map covers this x (stage n starts at n * kStageSpacing).
+	int stageIdAtX(float x) const
+	{
+		for (const auto &stage : _stages)
+		{
+			if (x >= stage->originX - 1.0f && x < stage->originX + kStageSpacing - 1.0f)
+				return stage->id;
+		}
+		return kMainStage;
+	}
+	// Loads a map as a new stage far to the side of the others; null if it cannot be loaded.
+	// (For trap maps; setMapChange does not use it.)
+	Stage *addStage(const string &name, const string &mapFile, bool arena);
+	void removeStage(int id);
+	// Swaps the map and the background of a stage in place; nothing else moves.
+	bool replaceStageMap(int id, const string &name, const string &mapFile);
+	int _lastStageId = kMainStage;
+
+	// The background image follows the stage that is on screen.
+	BGLayer *_bgLayer = nullptr;
+	int _shownBgStage = kMainStage;
+	void syncBackground();
+	// Every unit posts its place to the minimap again (after the watched stage changed).
+	void refreshMinimap();
+
+	// XML <e type="setMapChange">: see Systems/MapChangeSystem.hpp. stageId: the caster's.
+	std::unique_ptr<MapChangeSystem> _mapChange;
+	void requestMapChange(int stageId, const string &mapName, int style, float seconds);
+
+	// XML <e type="setTrapMap">: see Systems/TrapSystem.hpp.
+	std::unique_ptr<TrapSystem> _trap;
+	void armTrap(CharacterBase *caster, const string &mapName, int style, float seconds, int debuff);
+	void trapHit(CharacterBase *caster, CharacterBase *victim);		   // an attack of `caster` landed on `victim`
+	bool isTrapActive() const;										   // Duels/Arcade refuse hero swaps while true
+	Vec2 trapHeroDied(CharacterBase *dead, const Vec2 &position);	   // see TrapSystem::onHeroDeath
+	void showVeilFade(float fadeIn, float hold, float fadeOut) { _veil.triggerFade(0, 0, 0, 255, fadeIn, hold, fadeOut); }
 
 	// Camera zoom (see Systems/CameraZoom.hpp). Started by the character XML tag
 	// <e type="setZoom">factor, seconds</e> through CharacterBase::setZoom().
@@ -197,6 +257,26 @@ public:
 	int showVeilHeld(int r, int g, int b, int a, float failsafeSeconds, bool round = false) { return _veil.triggerHeld(r, g, b, a, failsafeSeconds, round); }
 	void releaseVeil(int id) { _veil.release(id); }
 	void applyVeil();
+
+	// Colour inversion (see Systems/ScreenInvert.hpp and InvertShader.hpp): from the XML
+	// tags setInvert/setInvert2 and setCircleInvert/setCircleInvert2 through
+	// CharacterBase. The inverting layers sit between the game world and the HUD, below
+	// any veil, so the HUD and the veil colours are left alone.
+	ScreenInvert _invert;
+	LayerColor *_invertLayer = nullptr;		// white, inverts everything under it
+	CCDrawNode *_invertCircle = nullptr;	// the same, only inside a circle
+	CharacterBase *_invertCaster = nullptr;	// the hero that used it (retained while the effect lasts)
+	std::unique_ptr<InvertCompositor> _invertComp;	// what wears the inverting shader (see Systems/InvertCompositor.hpp)
+	void showInvert(CharacterBase *caster, int mode, float seconds, bool round);
+	int showInvertHeld(CharacterBase *caster, int mode, float failsafeSeconds, bool round);
+	void releaseInvert(int id) { _invert.release(id); }
+	void applyInvert();
+	void setInvertCaster(CharacterBase *caster);
+	void clearInvertCaster();
+
+	// Where a round effect (round veil, circle invert) is centred, in this layer's
+	// parent's coordinates, and the radius that reaches the farthest screen corner.
+	void getRoundEffectGeometry(Node *scene, Vec2 &center, float &fullRadius);
 
 	// Arcade "next stage": the results screen sets these and leaves through
 	// onLeft(), which then starts the next match directly instead of handing

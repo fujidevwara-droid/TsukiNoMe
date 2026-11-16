@@ -146,7 +146,7 @@ class Karin : public Hero
 		{
 			for (int i = 0; i < 3; i++)
 			{
-				auto trap = Bullet::create();
+				auto trap = spawned(Bullet::create());
 				trap->setAnchorPoint(Vec2(0.5f, 0));
 				trap->setMaster(this);
 				trap->setID(trapType, Role::Mon, getGroup());

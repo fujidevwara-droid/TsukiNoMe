@@ -54,6 +54,20 @@ public:
 	PPROP(Group, _group, Group);
 	VPROP(int, _charId, CharId);
 
+	// The stage (map) this unit is on, see Systems/Stage.hpp. A unit that another unit
+	// spawns (bullet, mon, clone, summon) starts on its spawner's stage.
+	int					_stageId = 0;
+	const Stage&		stage() const;
+	bool				inArena() const { return stage().arena; }		// duel arena rules apply here
+	// Map geometry of this unit's stage, so tile-based map logic works on any stage.
+	// stageX() is the x position within the stage's own map; y needs no conversion.
+	float				stageX() { return getPositionX() - stage().originX; }
+	float				tileW() const { return stage().tileWidth(); }
+	float				tileH() const { return stage().tileHeight(); }
+	float				mapTilesX() const { return stage().tilesX(); }
+	// Wrap a unit this one spawns so it starts on the same stage: spawned(Bullet::create()).
+	template <class T> T* spawned(T* unit) { unit->_stageId = _stageId; return unit; }
+
 	VPROP(State, _state, State);
 
 	uint32_t			_deadNum;
@@ -163,6 +177,13 @@ public:
 	int					lbAttackerId = -1;
 	uint32_t			lostBloodValue;
 
+	// The middle of the body, in game-layer coordinates: the hero's own position (the
+	// point every sprite frame is placed around, bottom middle) raised by half the
+	// authored body height (the Idle data's attackRangeY, the same one projectiles
+	// spawn from). Built only from the position, so it does not depend on the
+	// sprite's canvas size, anchor or the plist offsets.
+	Vec2				getBodyCenter() { return Vec2(getPositionX(), getPositionY() + getHeight() / 2.0f); }
+
 	// ---- Poison ----------------------------------------------------------
 	// XML: <e type="setPoison">30, 3</e> = 30 damage per tick for 3 seconds.
 	// setPoison() only ARMS the attacker; every victim hit while the arm is
@@ -180,6 +201,8 @@ public:
 	uint32_t			poisonTickValue = 0;
 	int					poisonTicksLeft = 0;
 	bool				_inPoisonTick = false;			// DOT damage must not re-apply poison
+	static constexpr int kPoisonEffectTagBase = 0x40000000;	// + charId: this hero's poison fx on the game layer
+	int					poisonEffectTag() const { return kPoisonEffectTagBase + _charId; }
 	int					gearCKRValue;
 	uint32_t			gearRecoverValue;
 
@@ -614,6 +637,31 @@ public:
 	void				setRoundVeil(const string& args) { applyVeilTag(args, true); }
 	void				applyVeilTag(const string& args, bool round);
 	void				setVeilUntil(ccColor4B color, std::shared_ptr<FrameLink> link, bool round);
+
+	// XML <e type="setInvert">mode, seconds</e> and <e type="setInvert2">mode, frames</e>
+	// invert the picture's colours (the HUD is never inverted). mode: 1 = everything except
+	// this hero and what is connected to it (shadow, summons, clones, puppets, mons,
+	// projectiles, effects), 2 = only those, 3 = everything, 4 = everything except the
+	// characters (flogs, heroes, their summons and shadows). setInvert2 lasts a number of the
+	// animation's frames, or until the animation ends when none is given.
+	// <e type="setCircleInvert">mode, seconds</e> and setCircleInvert2 do the same inside a
+	// circle that grows out of the hero until it covers the screen, then shrinks away.
+	// Like setZoom, only the hero the human is playing does it.
+	void				setInvert(const string& args) { applyInvertTag(args, false); }
+	void				setCircleInvert(const string& args) { applyInvertTag(args, true); }
+	void				applyInvertTag(const string& args, bool round);
+	void				setInvertUntil(int mode, std::shared_ptr<FrameLink> link, bool round);
+
+	// XML <e type="setMapChange">mapname, transitionstyle, seconds</e>: swaps the map and the
+	// background (see Systems/MapChangeSystem.hpp); everything else stays where it is. Any
+	// hero can do it, not only the one the human plays.
+	void				setMapChange(const string& args);
+
+	// XML <e type="setTrapMap">mapname, transitionstyle, seconds, debuff</e>: whoever this hero's
+	// attacks hit in the next moment is taken with it into a trap map for a while (see
+	// Systems/TrapSystem.hpp). The debuff slot is read and ignored for now.
+	void				setTrapMap(const string& args);
+	void				releaseInvertLink(std::shared_ptr<FrameLink> link);
 	void				releaseVeilLink(std::shared_ptr<FrameLink> link);
 	// void				setItemEffect(const string &type);
 	void				setDamgeEffect(const string& type);
@@ -622,6 +670,10 @@ public:
 	void				setOugis();
 
 	virtual Hero* createClone(int cloneTime);
+
+	// Duels: how many summons (kuchiyose and kugutsu, not mons or bullets) one side may
+	// have alive at once. A new one makes the oldest alive one of its side step down.
+	static constexpr size_t kMaxDuelSummons = 3;
 	void				setClone(int cloneTime);
 	void				setMon(const string& monName);
 	void				setMonPer(float dt);
@@ -860,7 +912,7 @@ protected:
 		return false;
 	}
 	bool needBackToDefendTower(bool isNeedBack = true) {
-		if (isBaseDanger && checkBase() && !_isControlled && isNeedBack)
+		if (isBaseDanger && _stageId == kMainStage && checkBase() && !_isControlled && isNeedBack)
 		{
 			bool needBack = false;
 			if (isAkatsukiGroup())

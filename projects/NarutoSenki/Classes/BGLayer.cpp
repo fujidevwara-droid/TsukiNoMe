@@ -2,11 +2,27 @@
 
 void BGLayer::initBg(int mapId, bool isDuel)
 {
-	bgMap = isDuel ? Sprite::create(format("Maps/Duels/map_bg{}.png", mapId).c_str())
-				   : Sprite::create(GetMapBgPath(mapId));
+	setBackground(isDuel ? format("Maps/Duels/map_bg{}.png", mapId) : string(GetMapBgPath(mapId)), isDuel);
+}
+
+void BGLayer::setBackground(const string &file, bool isDuelStyle)
+{
+	if (bgMap)
+	{
+		bgMap->removeFromParent();
+		bgMap = nullptr;
+	}
+
+	if (file.empty() || !FileUtils::sharedFileUtils()->isFileExist(file))
+		return;
+
+	bgMap = Sprite::create(file.c_str());
+	if (!bgMap)
+		return;
+
 	bgMap->setAnchorPoint(Vec2(0, 0));
 
-	if (!isDuel)
+	if (!isDuelStyle)
 	{
 		bgMap->setPosition(Vec2(0, 192));
 		addChild(bgMap);

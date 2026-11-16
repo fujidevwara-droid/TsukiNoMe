@@ -40,7 +40,9 @@ void MiniIcon::updateMap(Ref *sender)
 	if (getCharId() == poster->getCharId())
 	{
 		// Benched duel heroes are hidden on the minimap too.
-		if (poster->getState() == State::DEAD || poster->_isVisable == false || poster->_isBenched)
+		// Units on another map than the one on screen are not on the minimap.
+		if (poster->getState() == State::DEAD || poster->_isVisable == false || poster->_isBenched ||
+			poster->_stageId != getGameLayer()->observerStage().id)
 		{
 			setVisible(false);
 		}
@@ -57,7 +59,7 @@ void MiniIcon::updateMap(Ref *sender)
 			}
 
 			setVisible(true);
-			updatePosition(poster->getPosition());
+			updatePosition(Vec2(poster->stageX(), poster->getPositionY()));
 		}
 	}
 }

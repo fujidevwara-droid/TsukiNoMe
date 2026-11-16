@@ -247,6 +247,12 @@ void CharacterBase::readData(CCArray* tmpData, string& attackType, uint32_t& att
 			combatPoint = tmpDict->valueForKey("combatPoint")->intValue();
 		}
 	}
+
+}
+
+const Stage& CharacterBase::stage() const
+{
+	return getGameLayer()->stageOf(_stageId);
 }
 
 void CharacterBase::update(float dt)
@@ -290,6 +296,19 @@ void CharacterBase::update(float dt)
 		_dehealBuffEffect->setPositionX(getContentSize().width / 2);
 	}
 
+	// Poison fx: follow the body centre every frame, flips included.
+	if (poisonTicksLeft > 0)
+	{
+		if (auto layer = getParent())
+		{
+			if (auto poisonFx = layer->getChildByTag(poisonEffectTag()))
+			{
+				poisonFx->setPosition(getBodyCenter());
+				layer->reorderChild(poisonFx, getZOrder() + 1);
+			}
+		}
+	}
+
 	if (_shadow)
 	{
 		_shadow->setPosition(Vec2(getPositionX(), _originY ? _originY : getPositionY()));
@@ -299,9 +318,9 @@ void CharacterBase::update(float dt)
 	// the position directly and knows nothing about the arena walls. Catch the
 	// overshoot once per frame: put the hero back on the wall and turn it to
 	// face away from it. WALK is clamped further down.
-	if (isDuelMode() && _state != State::WALK && _state != State::DEAD)
+	if (inArena() && _state != State::WALK && _state != State::DEAD)
 	{
-		const auto arena = getGameLayer()->arenaBounds();
+		const auto arena = getGameLayer()->arenaBounds(stage());
 		const float x = getPositionX();
 		if (x < arena.minX)
 		{
@@ -323,7 +342,7 @@ void CharacterBase::update(float dt)
 		{
 			if (isNotGuardian())
 			{
-				if (isDuelMode())
+				if (inArena())
 				{
 					_isHealing = false; // there is no base to heal at in the arena
 				}
@@ -392,11 +411,11 @@ void CharacterBase::update(float dt)
 			}
 		}
 
-		float mapMinX = 0;
-		float mapMaxX = getGameLayer()->currentMap->getMapSize().width * getGameLayer()->currentMap->getTileSize().width;
-		if (isDuelMode())
+		float mapMinX = stage().originX;
+		float mapMaxX = stage().originX + mapTilesX() * tileW();
+		if (inArena())
 		{
-			const auto arena = getGameLayer()->arenaBounds();
+			const auto arena = getGameLayer()->arenaBounds(stage());
 			mapMinX = arena.minX;
 			mapMaxX = arena.maxX;
 		}
@@ -406,7 +425,7 @@ void CharacterBase::update(float dt)
 		// map height		: 10
 		// backgroud height	: 4.5
 		// floor height		: 5.5
-		float poxY = MIN(getGameLayer()->currentMap->getTileSize().height * 5.5, MAX(0, _desiredPosition.y));
+		float poxY = MIN(tileH() * 5.5, MAX(0, _desiredPosition.y));
 
 		setPosition(Vec2(posX, poxY));
 		getGameLayer()->reorderChild(this, -getPositionY());
@@ -1020,6 +1039,7 @@ void CharacterBase::acceptAttack(Ref* object)
 
 static bool parseAmountAndFrames(const string& args, float& amount, int& frames); // defined with setShake()
 static bool parseVeilArgs(const string& args, ccColor4B& color, float& extra, bool& hasExtra); // defined with setVeil()
+static bool parseInvertArgs(const string& args, int& mode, float& extra, bool& hasExtra); // defined with setInvert()
 
 FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fps, bool isLoop, bool isReturnToIdle)
 {
@@ -1041,7 +1061,7 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 	struct FrameBound
 	{
 		std::shared_ptr<FrameLink> link;
-		enum Kind { Zoom, Shake, Veil } kind;
+		enum Kind { Zoom, Shake, Veil, Invert } kind;
 		int framesLeft; // -1: until the animation ends
 		float startedAt;
 	};
@@ -1058,6 +1078,8 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 			call = CallFunc::create(std::bind(&CharacterBase::releaseShakeLink, this, b.link));
 		else if (b.kind == FrameBound::Veil)
 			call = CallFunc::create(std::bind(&CharacterBase::releaseVeilLink, this, b.link));
+		else if (b.kind == FrameBound::Invert)
+			call = CallFunc::create(std::bind(&CharacterBase::releaseInvertLink, this, b.link));
 		else
 			call = CallFunc::create(std::bind(&CharacterBase::releaseZoomLink, this, b.link));
 		list.pushBack(call);
@@ -1157,6 +1179,42 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 						list.pushBack(call);
 						bound.push_back({ link, isShake ? FrameBound::Shake : FrameBound::Zoom, frames, elapsed });
 					}
+				}
+				else if (key == "setTrapMap" || key == "setMapTrap")
+				{
+					auto call = CallFunc::create(std::bind(&CharacterBase::setTrapMap, this, keyValue));
+					list.pushBack(call);
+				}
+				else if (key == "setMapChange" || key == "setChangeMap")
+				{
+					auto call = CallFunc::create(std::bind(&CharacterBase::setMapChange, this, keyValue));
+					list.pushBack(call);
+				}
+				else if (key == "setInvert2" || key == "setCircleInvert2")
+				{
+					const bool round = key == "setCircleInvert2";
+					int mode = 0;
+					float extra = 0.0f;
+					bool hasExtra = false;
+					if (parseInvertArgs(keyValue, mode, extra, hasExtra))
+					{
+						// No number (or 0) after the mode: until the animation ends.
+						int frames = (hasExtra && extra >= 1.0f) ? static_cast<int>(extra) : -1;
+						auto link = std::make_shared<FrameLink>();
+						auto call = CallFunc::create(std::bind(&CharacterBase::setInvertUntil, this, mode, link, round));
+						list.pushBack(call);
+						bound.push_back({ link, FrameBound::Invert, frames, elapsed });
+					}
+				}
+				else if (key == "setInvert")
+				{
+					auto call = CallFunc::create(std::bind(&CharacterBase::setInvert, this, keyValue));
+					list.pushBack(call);
+				}
+				else if (key == "setCircleInvert")
+				{
+					auto call = CallFunc::create(std::bind(&CharacterBase::setCircleInvert, this, keyValue));
+					list.pushBack(call);
 				}
 				else if (key == "setVeil2" || key == "setRoundVeil2")
 				{
@@ -1643,6 +1701,10 @@ void CharacterBase::setDamage(CharacterBase* attacker, const string& effectType,
 	// DOT. The DOT's own damage passes through here too, hence the guard.
 	if (attacker->_pendingPoisonValue > 0 && !_inPoisonTick)
 		applyPoisonFrom(attacker, currentAttacker);
+
+	// A trap map: a hero whose setTrapMap is armed catches whoever its attacks hit.
+	if (currentAttacker && currentAttacker != this && !_inPoisonTick)
+		getGameLayer()->trapHit(currentAttacker, this);
 }
 
 void CharacterBase::setCoinDisplay(int num)
@@ -1872,6 +1934,105 @@ void CharacterBase::releaseVeilLink(std::shared_ptr<FrameLink> link)
 {
 	if (link->id != 0)
 		getGameLayer()->releaseVeil(link->id);
+}
+
+// "<mode>[, <extra>]": the mode (1 to 4) and an optional last number (seconds for
+// setInvert, frames for setInvert2). Commas and spaces both just separate the values.
+static bool parseInvertArgs(const string& args, int& mode, float& extra, bool& hasExtra)
+{
+	string cleaned = args;
+	std::replace(cleaned.begin(), cleaned.end(), ',', ' ');
+	std::istringstream in(cleaned);
+
+	if (!(in >> mode) || mode < 1 || mode > 4)
+		return false;
+
+	hasExtra = static_cast<bool>(in >> extra);
+	return true;
+}
+
+void CharacterBase::applyInvertTag(const string& args, bool round)
+{
+	// Only the hero the human is playing inverts the screen.
+	if (!isPlayer() && !isActivePlayerBody())
+		return;
+
+	int mode = 0;
+	float seconds = 0.5f; // used if the tag gives only a mode
+	bool hasSeconds = false;
+	if (!parseInvertArgs(args, mode, seconds, hasSeconds))
+		return;
+	if (!hasSeconds)
+		seconds = 0.5f;
+
+	getGameLayer()->showInvert(this, mode, seconds, round);
+}
+
+void CharacterBase::setInvertUntil(int mode, std::shared_ptr<FrameLink> link, bool round)
+{
+	if (!isPlayer() && !isActivePlayerBody())
+		return;
+	link->id = getGameLayer()->showInvertHeld(this, mode, link->failsafe, round);
+}
+
+void CharacterBase::releaseInvertLink(std::shared_ptr<FrameLink> link)
+{
+	if (link->id != 0)
+		getGameLayer()->releaseInvert(link->id);
+}
+
+// Splits "a, b,, c" into its fields, trimmed; an empty field stays as an empty string.
+static vector<string> splitFields(const string& args)
+{
+	vector<string> parts;
+	std::stringstream stream(args);
+	string part;
+	while (std::getline(stream, part, ','))
+	{
+		const auto first = part.find_first_not_of(" \t\r\n");
+		const auto last = part.find_last_not_of(" \t\r\n");
+		parts.push_back(first == string::npos ? string() : part.substr(first, last - first + 1));
+	}
+	return parts;
+}
+
+// "<mapname>[, <style>[, <seconds>[, <debuff>]]]": a field may be left empty
+// ("KamuiDimension,,,0"). The seconds default to 10 when empty.
+void CharacterBase::setTrapMap(const string& args)
+{
+	const vector<string> parts = splitFields(args);
+	if (parts.empty() || parts[0].empty())
+		return;
+
+	const int style = (parts.size() > 1 && !parts[1].empty()) ? atoi(parts[1].c_str()) : 0;
+	const float seconds = (parts.size() > 2 && !parts[2].empty()) ? (float)atof(parts[2].c_str()) : 0.0f;
+	const int debuff = (parts.size() > 3 && !parts[3].empty()) ? atoi(parts[3].c_str()) : 0; // not used yet
+
+	// A summon or clone using it traps on its owner's behalf.
+	CharacterBase* caster = getMaster() ? getMaster() : this;
+	getGameLayer()->armTrap(caster, parts[0], style, seconds, debuff);
+}
+
+// "<mapname>[, <style>[, <seconds>]]": a field may be left empty ("KamuiDimension,,8").
+void CharacterBase::setMapChange(const string& args)
+{
+	vector<string> parts;
+	std::stringstream stream(args);
+	string part;
+	while (std::getline(stream, part, ','))
+	{
+		const auto first = part.find_first_not_of(" \t\r\n");
+		const auto last = part.find_last_not_of(" \t\r\n");
+		parts.push_back(first == string::npos ? string() : part.substr(first, last - first + 1));
+	}
+
+	if (parts.empty() || parts[0].empty())
+		return;
+
+	const int style = (parts.size() > 1 && !parts[1].empty()) ? atoi(parts[1].c_str()) : 0;
+	const float seconds = (parts.size() > 2 && !parts[2].empty()) ? (float)atof(parts[2].c_str()) : 0.0f;
+
+	getGameLayer()->requestMapChange(_stageId, parts[0], style, seconds);
 }
 
 void CharacterBase::setSkillEffect(const string& type)
@@ -2207,9 +2368,9 @@ void CharacterBase::setRestore2(float dt)
 	if (_hpBar)
 	{
 		bool isZone = false;
-		if (isAkatsukiGroup() && getPositionX() <= getGameLayer()->currentMap->getTileSize().width * 2)
+		if (isAkatsukiGroup() && stageX() <= tileW() * 2)
 			isZone = true;
-		else if (isKonohaGroup() && getPositionX() >= (getGameLayer()->currentMap->getMapSize().width - 2) * getGameLayer()->currentMap->getTileSize().width)
+		else if (isKonohaGroup() && stageX() >= (mapTilesX() - 2) * tileW())
 			isZone = true;
 
 		if (isZone)
@@ -2395,8 +2556,8 @@ void CharacterBase::setMove(int moveLength)
 		moveLength = getKnockLength();
 	}
 
-	if (getPositionX() > getGameLayer()->currentMap->getTileSize().width &&
-		getPositionX() < (getGameLayer()->currentMap->getMapSize().width - 1) * getGameLayer()->currentMap->getTileSize().width)
+	if (stageX() > tileW() &&
+		stageX() < (mapTilesX() - 1) * tileW())
 	{
 		ActionInterval* mv;
 		if (_state == State::HURT)
@@ -2443,8 +2604,8 @@ void CharacterBase::setJump(bool jumpDirection)
 
 void CharacterBase::setCharge(int moveLength)
 {
-	if ((getPositionX() < getGameLayer()->currentMap->getTileSize().width && _isFlipped) ||
-		(getPositionX() > (getGameLayer()->currentMap->getMapSize().width - 1) * getGameLayer()->currentMap->getTileSize().width && !_isFlipped))
+	if ((stageX() < tileW() && _isFlipped) ||
+		(stageX() > (mapTilesX() - 1) * tileW() && !_isFlipped))
 	{
 		return;
 	}
@@ -2458,8 +2619,8 @@ void CharacterBase::setCharge(int moveLength)
 // without getCollider
 void CharacterBase::setChargeB(int moveLength)
 {
-	if ((getPositionX() < getGameLayer()->currentMap->getTileSize().width && _isFlipped) ||
-		(getPositionX() > (getGameLayer()->currentMap->getMapSize().width - 1) * getGameLayer()->currentMap->getTileSize().width && !_isFlipped))
+	if ((stageX() < tileW() && _isFlipped) ||
+		(stageX() > (mapTilesX() - 1) * tileW() && !_isFlipped))
 	{
 		return;
 	}
@@ -3054,9 +3215,16 @@ void CharacterBase::poisonTick(float dt)
 
 	if (_isVisable)
 	{
-		Effect* poisonEffect = Effect::create("Hupo", this);
-		poisonEffect->setPosition(Vec2(getContentSize().width / 2, getContentSize().height / 2 + 6));
-		addChild(poisonEffect);
+		// Lives on the game layer, not on the sprite, so its place comes only from
+		// the hero's position (getBodyCenter) and update() keeps it there every frame.
+		// Tagged per hero, one at a time.
+		if (auto layer = getParent())
+		{
+			layer->removeChildByTag(poisonEffectTag());
+			Effect* poisonEffect = Effect::create("Hupo", this);
+			poisonEffect->setPosition(getBodyCenter());
+			layer->addChild(poisonEffect, getZOrder() + 1, poisonEffectTag());
+		}
 	}
 
 	if (isPlayer())
@@ -3141,8 +3309,8 @@ void CharacterBase::getCollider()
 
 void CharacterBase::stopMove(float dt)
 {
-	if (getPositionX() <= getGameLayer()->currentMap->getTileSize().width ||
-		getPositionX() >= (getGameLayer()->currentMap->getMapSize().width - 1) * getGameLayer()->currentMap->getTileSize().width)
+	if (stageX() <= tileW() ||
+		stageX() >= (mapTilesX() - 1) * tileW())
 	{
 		unschedule(schedule_selector(CharacterBase::stopMove));
 		getActionManager()->removeAction(_moveAction);
@@ -3177,7 +3345,7 @@ void CharacterBase::stopJump(int stopTime)
 
 void CharacterBase::setBullet(const string& bulletName)
 {
-	auto bullet = Bullet::create();
+	auto bullet = spawned(Bullet::create());
 	bullet->setID(bulletName, Role::Bullet, _group);
 	bullet->idle();
 	bullet->_master = _master ? _master : this;
@@ -3263,7 +3431,7 @@ void CharacterBase::setBulletGroup(float dt)
 {
 	for (int i = 0; i < 2; i++)
 	{
-		auto bullet = Bullet::create();
+		auto bullet = spawned(Bullet::create());
 		float rangeX = 0;
 
 		bullet->setID("HugeSRK", Role::Bullet, _group);
@@ -3311,6 +3479,32 @@ void CharacterBase::setClone(int cloneTime)
 	{
 		CCLOG("Current character %s can not create clone", getName().c_str());
 		return;
+	}
+	spawned(clone); // a clone or summon starts on its caster's stage
+
+	// Duels: keep a side to kMaxDuelSummons summons. The new one is not on the field
+	// yet, so it is not counted; the oldest ones (the field list is in spawn order)
+	// leave the same way a timed-out summon does, before this one appears.
+	if (isDuelMode() && (clone->isKugutsu() || clone->isSummon()))
+	{
+		vector<CharacterBase*> alive;
+		for (auto c : getGameLayer()->_CharacterArray)
+		{
+			if ((c->isKugutsu() || c->isSummon()) && c->getGroup() == clone->getGroup() &&
+				c->getState() != State::DEAD)
+				alive.push_back(c);
+		}
+
+		while (alive.size() >= kMaxDuelSummons)
+		{
+			CharacterBase* oldest = alive.front();
+			alive.erase(alive.begin());
+
+			oldest->unschedule(schedule_selector(CharacterBase::removeClone));
+			oldest->dead();
+			if (auto owner = oldest->getMaster())
+				std::erase(owner->_monsterArray, oldest);
+		}
 	}
 
 	if (_master)
@@ -3405,7 +3599,7 @@ void CharacterBase::setMon(const string& monName)
 {
 	float monsterStayTime = _attackRangeY;
 
-	auto monster = Monster::create();
+	auto monster = spawned(Monster::create());
 	monster->setID(monName, Role::Mon, _group);
 
 	if (_master)
@@ -3812,7 +4006,7 @@ void CharacterBase::setMon(const string& monName)
 
 void CharacterBase::setMonPer(float dt)
 {
-	auto monster = Monster::create();
+	auto monster = spawned(Monster::create());
 
 	if (getName() == HeroEnum::Deidara)
 	{
@@ -3877,7 +4071,7 @@ void CharacterBase::setTrap(const string& trapName)
 			{
 				if (z == 0)
 				{
-					auto trap = Bullet::create();
+					auto trap = spawned(Bullet::create());
 					trap->_master = this;
 					trap->setID(trapName, Role::Mon, _group);
 					trap->setAnchorPoint(Vec2(0.5, 0));
@@ -3891,7 +4085,7 @@ void CharacterBase::setTrap(const string& trapName)
 				{
 					for (int i = 0; i < 3; i++)
 					{
-						auto trap = Bullet::create();
+						auto trap = spawned(Bullet::create());
 						trap->_master = this;
 						trap->setID(trapName, Role::Mon, _group);
 						trap->setAnchorPoint(Vec2(0.5, 0));
@@ -3904,7 +4098,7 @@ void CharacterBase::setTrap(const string& trapName)
 				}
 				else if (z == 2)
 				{
-					auto trap = Bullet::create();
+					auto trap = spawned(Bullet::create());
 					trap->_master = this;
 					trap->setID(trapName, Role::Mon, _group);
 					trap->setAnchorPoint(Vec2(0.5, 0));
@@ -3924,7 +4118,7 @@ void CharacterBase::setTrap(const string& trapName)
 				{
 					for (int i = 0; i < 3; i++)
 					{
-						auto trap = Bullet::create();
+						auto trap = spawned(Bullet::create());
 						trap->_master = this;
 						trap->setID(trapName, Role::Mon, _group);
 						trap->setPosition(Vec2(getPositionX() + (_isFlipped ? -112 : 112), getPositionY() + (48 - i * 24)));
@@ -3938,7 +4132,7 @@ void CharacterBase::setTrap(const string& trapName)
 				{
 					for (int i = 0; i < 2; i++)
 					{
-						auto trap = Bullet::create();
+						auto trap = spawned(Bullet::create());
 						trap->_master = this;
 						trap->setID(trapName, Role::Mon, _group);
 						trap->setPosition(Vec2(getPositionX() + (_isFlipped ? -80 : 80), getPositionY() + (32 - i * 24)));
@@ -3950,7 +4144,7 @@ void CharacterBase::setTrap(const string& trapName)
 				}
 				else
 				{
-					auto trap = Bullet::create();
+					auto trap = spawned(Bullet::create());
 					trap->_master = this;
 					trap->setID(trapName, Role::Mon, _group);
 					trap->setPosition(Vec2(getPositionX() + (_isFlipped ? -48 : 48), getPositionY() + 22));
@@ -5246,7 +5440,8 @@ CharacterBase::findEnemyBy(const vector<T*>& list, int searchRange, bool masterR
 		if (target->_state == State::DEAD ||
 			target->_isVisable == false ||
 			target->_isInvincible ||
-			target->isKugutsu())
+			target->isKugutsu() ||
+			target->_stageId != _stageId) // another map: out of reach
 		{
 			continue;
 		}
@@ -5276,7 +5471,7 @@ CharacterBase::findEnemyBy(const vector<T*>& list, int searchRange, bool masterR
 			}
 
 			// The arena is one screen wide, so the other duelist is always in reach.
-			if (abs(sp.x) < (searchRange ? searchRange : kAttackRange) || isDuelMode())
+			if (abs(sp.x) < (searchRange ? searchRange : kAttackRange) || (inArena() && target->_stageId == _stageId))
 			{
 				if (target->_isTaunt)
 				{
@@ -5340,14 +5535,15 @@ CharacterBase::findEnemy2By(const vector<T*>& list)
 	{
 		if (target->_state == State::DEAD ||
 			target->_isVisable == false ||
-			target->isKugutsu())
+			target->isKugutsu() ||
+			target->_stageId != _stageId) // another map: out of reach
 		{
 			continue;
 		}
 
 		sp = target->getPosition() - getPosition();
 		distance = sp.getLength();
-		if (abs(sp.x) < kAttackRange || isDuelMode())
+		if (abs(sp.x) < kAttackRange || (inArena() && target->_stageId == _stageId))
 		{
 			if (target->isNotClone() && target->isNotSummon())
 			{
@@ -5362,7 +5558,7 @@ CharacterBase::findEnemy2By(const vector<T*>& list)
 
 				if (_group == target->_group)
 				{
-					if (abs(sp.x) < getGameLayer()->currentMap->getTileSize().width * 3)
+					if (abs(sp.x) < tileW() * 3)
 					{
 						if (target->isNotGuardian())
 						{
@@ -5381,7 +5577,7 @@ CharacterBase::findEnemy2By(const vector<T*>& list)
 							(target->getCKR2() / 25000) * target->_sAttackCombatPoint5;
 					}
 
-					if (!target->_isInvincible && (target->getPositionX() >= getGameLayer()->currentMap->getTileSize().width * 3 && target->getPositionX() <= (getGameLayer()->currentMap->getMapSize().width - 3) * getGameLayer()->currentMap->getTileSize().width))
+					if (!target->_isInvincible && (target->stageX() >= tileW() * 3 && target->stageX() <= (mapTilesX() - 3) * tileW()))
 					{
 						if (curDistance && curDistance > distance)
 						{
@@ -5432,6 +5628,7 @@ CharacterBase::findTargetEnemyBy(const vector<T*>& list, bool isTowerDected)
 	{
 		if (getGroup() != target->getGroup() &&
 			target->isNotKugutsu() &&
+			target->_stageId == _stageId &&
 			target->_state != State::DEAD &&
 			target->_isVisable && !target->_isInvincible)
 		{
@@ -5532,11 +5729,11 @@ void CharacterBase::stepOn()
 {
 	Vec2 moveDirection;
 
-	if (isDuelMode())
+	if (inArena())
 	{
 		// Nothing to march towards in a closed arena: patrol between the walls
 		// instead of walking into one forever.
-		const auto arena = getGameLayer()->arenaBounds();
+		const auto arena = getGameLayer()->arenaBounds(stage());
 		if (_duelWanderDir == 0)
 			_duelWanderDir = isKonohaGroup() ? 1 : -1;
 
@@ -5568,12 +5765,12 @@ bool CharacterBase::stepBack()
 		moveDirection = Vec2(1, 0).getNormalized();
 
 	// In the arena "room to retreat" is measured from the arena walls.
-	const float tile = getGameLayer()->currentMap->getTileSize().width;
-	float minX = tile * 2;
-	float maxX = (getGameLayer()->currentMap->getMapSize().width - 2) * tile;
-	if (isDuelMode())
+	const float tile = tileW();
+	float minX = stage().originX + tile * 2;
+	float maxX = stage().originX + (mapTilesX() - 2) * tile;
+	if (inArena())
 	{
-		const auto arena = getGameLayer()->arenaBounds();
+		const auto arena = getGameLayer()->arenaBounds(stage());
 		minX = arena.minX + tile;
 		maxX = arena.maxX - tile;
 	}
@@ -5586,7 +5783,7 @@ bool CharacterBase::stepBack()
 	else
 	{
 		// Backed into a wall in the arena: turn and fight instead of freezing.
-		if (isDuelMode())
+		if (inArena())
 		{
 			walk(Vec2(-moveDirection.x, 0));
 			return true;
@@ -5609,7 +5806,7 @@ bool CharacterBase::stepBack2()
 	{
 		if (randomDirection > 5)
 		{
-			if (getPositionY() + 96 < getGameLayer()->currentMap->getTileSize().height * 5.5)
+			if (getPositionY() + 96 < tileH() * 5.5)
 			{
 				_diretionY = 1;
 				_backY = getPositionY() + 96;
@@ -5638,7 +5835,7 @@ bool CharacterBase::stepBack2()
 	{
 		if (randomDirection > 5)
 		{
-			if (_diretionY == 1 && (getPositionY() >= _backY || getPositionY() > getGameLayer()->currentMap->getTileSize().height * 5))
+			if (_diretionY == 1 && (getPositionY() >= _backY || getPositionY() > tileH() * 5))
 			{
 				_diretionY = -1;
 				_backY = getPositionY() - 96;
@@ -5651,10 +5848,10 @@ bool CharacterBase::stepBack2()
 		}
 		else
 		{
-			if (_diretionY == 1 && getPositionY() <= getGameLayer()->currentMap->getTileSize().height * 5)
+			if (_diretionY == 1 && getPositionY() <= tileH() * 5)
 			{
 				_diretionY = 1;
-				_backY = getGameLayer()->currentMap->getTileSize().height * 5;
+				_backY = tileH() * 5;
 			}
 			else if (getPositionY() > 16)
 			{
@@ -5664,13 +5861,13 @@ bool CharacterBase::stepBack2()
 		}
 	}
 
-	if (isKonohaGroup() && getPositionX() >= getGameLayer()->currentMap->getTileSize().width * 2)
+	if (isKonohaGroup() && stageX() >= tileW() * 2)
 	{
 		moveDirection = Vec2(-1, _diretionY);
 		walk(moveDirection);
 		return true;
 	}
-	else if (isAkatsukiGroup() && getPositionX() <= (getGameLayer()->currentMap->getMapSize().width - 2) * getGameLayer()->currentMap->getTileSize().width)
+	else if (isAkatsukiGroup() && stageX() <= (mapTilesX() - 2) * tileW())
 	{
 		moveDirection = Vec2(1, _diretionY);
 		walk(moveDirection);
@@ -5685,7 +5882,7 @@ bool CharacterBase::stepBack2()
 // [For AI] 检查角色是否需要使用【拉面】回血，若血量低于界限，则返回true
 bool CharacterBase::checkRetri()
 {
-	if (isDuelMode())
+	if (inArena())
 	{
 		// No ramen healing here, so never retreat to heal. (The AI's chakra
 		// charging is decided in Hero::setAI, which every hero runs each tick.)
@@ -5729,12 +5926,12 @@ bool CharacterBase::checkRetri()
 	{
 		if (isKonohaGroup())
 		{
-			if (getPositionX() >= getGameLayer()->currentMap->getTileSize().width * 60)
+			if (stageX() >= tileW() * 60)
 				return false;
 		}
 		else
 		{
-			if (getPositionX() <= getGameLayer()->currentMap->getTileSize().width * 36)
+			if (stageX() <= tileW() * 36)
 				return false;
 		}
 	}
@@ -5908,6 +6105,12 @@ void CharacterBase::increaseAllCkrs(uint32_t value, bool enableLv2, bool enableL
 void CharacterBase::tryAIChargeChakra()
 {
 	if (!isDuelMode() || !_isAI || _isAIChargingChakra || _isBenched)
+		return;
+
+	// Only the heroes of the roster charge. Summons, puppets and shadow clones run
+	// through the same AI tick, but they are not "holding the ramen button": letting
+	// them roll feeds their side's pool and freezes them in place for the charge.
+	if (isClone() || isKugutsu() || isSummon())
 		return;
 
 	// Called on every AI tick. Times are total match seconds, not the clock's

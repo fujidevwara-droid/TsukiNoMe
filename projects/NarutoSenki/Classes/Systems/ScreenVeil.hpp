@@ -42,6 +42,28 @@ public:
 		_held = false;
 		_duration = seconds;
 		_fade = (std::min)(round ? kRoundSeconds : kFadeSeconds, seconds * 0.5f);
+		_fadeOut = _fade;
+		return ++_serial;
+	}
+
+	// A veil with its own, slow fades: fades in over fadeInSeconds, holds at full for
+	// holdSeconds, fades out over fadeOutSeconds. For scene changes (setMapChange): the
+	// full-black part is the time to change what is behind it.
+	int triggerFade(int r, int g, int b, int a, float fadeInSeconds, float holdSeconds, float fadeOutSeconds)
+	{
+		a = clamp255(a);
+		fadeInSeconds = (std::max)(fadeInSeconds, 0.0f);
+		holdSeconds = (std::max)(holdSeconds, 0.0f);
+		fadeOutSeconds = (std::max)(fadeOutSeconds, 0.0f);
+		const float total = fadeInSeconds + holdSeconds + fadeOutSeconds;
+		if (a <= 0 || total <= 0.0f)
+			return 0;
+
+		start(r, g, b, a, false);
+		_held = false;
+		_duration = total;
+		_fade = fadeInSeconds;
+		_fadeOut = fadeOutSeconds;
 		return ++_serial;
 	}
 
@@ -58,6 +80,7 @@ public:
 		_failsafe = failsafeSeconds;
 		_duration = 0.0f;
 		_fade = round ? kRoundSeconds : kFadeSeconds;
+		_fadeOut = _fade;
 		return ++_serial;
 	}
 
@@ -93,8 +116,8 @@ public:
 			return 0.0f;
 
 		float factor = _fade > 0.0f ? (std::min)(_elapsed / _fade, 1.0f) : 1.0f;
-		if (!_held && _fade > 0.0f)
-			factor = (std::min)(factor, (_duration - _elapsed) / _fade);
+		if (!_held && _fadeOut > 0.0f)
+			factor = (std::min)(factor, (_duration - _elapsed) / _fadeOut);
 		return (std::max)(factor, 0.0f);
 	}
 
@@ -137,7 +160,7 @@ private:
 	void endHold()
 	{
 		_held = false;
-		_duration = _elapsed + _fade;
+		_duration = _elapsed + _fadeOut;
 	}
 
 	int _r = 0;
@@ -147,7 +170,8 @@ private:
 	float _elapsed = 0.0f;
 	float _duration = 0.0f;
 	float _failsafe = 0.0f;
-	float _fade = kFadeSeconds;
+	float _fade = kFadeSeconds;    // how long it takes to come in
+	float _fadeOut = kFadeSeconds; // and to go out
 	bool _held = false;
 	bool _active = false;
 	bool _round = false;

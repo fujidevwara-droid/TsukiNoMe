@@ -162,7 +162,7 @@ void CCTMXLayer::setupTiles()
     //  - easier to render
     // cons:
     //  - difficult to scale / rotate / etc.
-    m_pobTextureAtlas->getTexture()->setAliasTexParameters();
+    m_pobTextureAtlas->getTexture()->setAntiAliasTexParameters();
 
     //CFByteOrder o = CFByteOrderGetCurrent();
 

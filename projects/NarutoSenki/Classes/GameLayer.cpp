@@ -1,6 +1,10 @@
 #include "Defines.h"
 #include "CharacterBase.h"
 #include "GameLayer.h"
+#include "Systems/InvertShader.hpp"
+#include "Systems/InvertCompositor.hpp"
+#include "Systems/MapChangeSystem.hpp"
+#include "Systems/TrapSystem.hpp"
 #include "BGLayer.h"
 #include "HudLayer.h"
 #include "StartMenu.h"
@@ -69,32 +73,35 @@ void BattleRuntimeSystem::updateViewPoint(GameLayer* layer) const
 	if (!layer || !layer->currentPlayer)
 		return;
 
-	Vec2 playerPoint;
+	// The camera follows one unit and shows the stage that unit is on: its map, and
+	// whether that map is an arena (fixed camera) or a scrolling one.
+	CharacterBase *observed = layer->currentPlayer;
 	if (layer->ougisChar)
-		playerPoint = layer->ougisChar->getPosition();
+		observed = layer->ougisChar;
 	else if (layer->controlChar)
-		playerPoint = layer->controlChar->getPosition();
-	else
-		playerPoint = layer->currentPlayer->getPosition();
+		observed = layer->controlChar;
 
-	const Size mapPixels(layer->currentMap->getMapSize().width * layer->currentMap->getTileSize().width,
-						 layer->currentMap->getMapSize().height * layer->currentMap->getTileSize().height);
+	const Stage &stage = observed->stage();
+	const Vec2 playerPoint = observed->getPosition();
+	const Size mapPixels = stage.pixels();
 
-	// Where the camera sits with no zoom.
+	// Where the camera sits with no zoom. Positions are GameLayer coordinates and the
+	// stage's own map starts at stage.originX, so that is subtracted at the end.
 	Vec2 base;
-	if (isDuelMode())
+	if (stage.arena)
 	{
 		// The arena fits on one screen: the camera stays put, centred on the map.
 		base = Vec2((winSize.width - mapPixels.width) / 2.0f, (winSize.height - mapPixels.height) / 2.0f);
 	}
 	else
 	{
-		int x = MAX(playerPoint.x, winSize.width / 2);
+		int x = MAX(playerPoint.x - stage.originX, winSize.width / 2);
 		int y = MAX(playerPoint.y, winSize.width / 2);
 		x = MIN(x, mapPixels.width - winSize.width / 2);
 		y = MIN(y, mapPixels.height - winSize.height / 2);
 		base = Vec2(winSize.width / 2, y) - Vec2(x, y);
 	}
+	base.x -= stage.originX;
 
 	const CameraZoom &zoom = layer->_zoom;
 	if (!zoom.isActive())
@@ -128,11 +135,11 @@ void BattleRuntimeSystem::updateViewPoint(GameLayer* layer) const
 	// shown while zoomed). When the player is near an edge the view stops at it and
 	// the player ends up off-centre rather than the view running past. If the
 	// playable width is narrower than the zoomed view, it is centred instead.
-	float leftEdge = 0.0f;
-	float rightEdge = mapPixels.width;
-	if (isDuelMode())
+	float leftEdge = stage.originX;
+	float rightEdge = stage.originX + mapPixels.width;
+	if (stage.arena)
 	{
-		const auto arena = layer->arenaBounds();
+		const auto arena = layer->arenaBounds(stage);
 		leftEdge = arena.minX;
 		rightEdge = arena.maxX;
 	}
@@ -161,6 +168,8 @@ void SpawnSystem::initMatchUnits(GameLayer* layer) const
 GameLayer::GameLayer()
 {
 	_battleRuntimeSystem = std::make_unique<BattleRuntimeSystem>();
+	_mapChange = std::make_unique<MapChangeSystem>(this);
+	_trap = std::make_unique<TrapSystem>(this);
 	_spawnSystem = std::make_unique<SpawnSystem>();
 	_sessionState = std::make_unique<SessionState>();
 	_duel = std::make_unique<DuelSystem>(this);
@@ -210,6 +219,7 @@ GameLayer::GameLayer()
 GameLayer::~GameLayer()
 {
 	_gLayer = nullptr;
+	CC_SAFE_RELEASE_NULL(_invertCaster);
 	removeKeyEventHandler();
 }
 
@@ -325,6 +335,153 @@ void GameLayer::initTileMap()
 	currentMap = TMXTiledMap::create(duel ? GetDuelMapPath(mapId) : GetMapPath(mapId));
 
 	addChild(currentMap, kMapOrder);
+
+	// Stage 0: the main map. It runs by the arena rules in the duel modes only.
+	auto main = std::make_unique<Stage>();
+	main->id = kMainStage;
+	main->map = currentMap;
+	main->originX = 0.0f;
+	main->arena = duel;
+	main->name = format("{}", mapId);
+	main->bgFile = duel ? format("Maps/Duels/map_bg{}.png", mapId) : string(GetMapBgPath(mapId));
+	_stages.clear();
+	_lastStageId = kMainStage;
+	_shownBgStage = kMainStage;
+	_stages.push_back(std::move(main));
+}
+
+Stage *GameLayer::addStage(const string &name, const string &mapFile, bool arena)
+{
+	auto map = TMXTiledMap::create(mapFile.c_str());
+	if (!map)
+		return nullptr;
+
+	auto stage = std::make_unique<Stage>();
+	stage->id = ++_lastStageId;
+	stage->name = name;
+	stage->map = map;
+	stage->originX = stage->id * kStageSpacing;
+	stage->arena = arena;
+	stage->bgFile = arena ? format("Maps/Duels/map_bg{}.png", name) : format("Maps/map_bg{}.png", name);
+
+	map->setPositionX(stage->originX);
+	addChild(map, kMapOrder);
+
+	_stages.push_back(std::move(stage));
+	return _stages.back().get();
+}
+
+void GameLayer::removeStage(int id)
+{
+	if (id == kMainStage)
+		return;
+
+	for (auto it = _stages.begin(); it != _stages.end(); ++it)
+	{
+		if ((*it)->id != id)
+			continue;
+		if ((*it)->map)
+			(*it)->map->removeFromParent();
+		_stages.erase(it);
+		return;
+	}
+}
+
+void GameLayer::syncBackground()
+{
+	const Stage &stage = observerStage();
+	if (!_bgLayer || stage.id == _shownBgStage)
+		return;
+
+	_shownBgStage = stage.id;
+	_bgLayer->setBackground(stage.bgFile, stage.arena);
+}
+
+void GameLayer::refreshMinimap()
+{
+	CCObject *obj = nullptr;
+	CCARRAY_FOREACH(getChildren(), obj)
+	{
+		if (auto unit = dynamic_cast<CharacterBase *>(obj))
+			CCNotificationCenter::sharedNotificationCenter()->postNotification("updateMap", unit);
+	}
+}
+
+void GameLayer::requestMapChange(int stageId, const string &mapName, int style, float seconds)
+{
+	if (_mapChange)
+		_mapChange->request(stageId, mapName, style, seconds);
+}
+
+void GameLayer::armTrap(CharacterBase *caster, const string &mapName, int style, float seconds, int debuff)
+{
+	if (_trap)
+		_trap->arm(caster, mapName, style, seconds, debuff);
+}
+
+void GameLayer::trapHit(CharacterBase *caster, CharacterBase *victim)
+{
+	if (_trap)
+		_trap->onHit(caster, victim);
+}
+
+bool GameLayer::isTrapActive() const
+{
+	return _trap && _trap->isActive();
+}
+
+Vec2 GameLayer::trapHeroDied(CharacterBase *dead, const Vec2 &position)
+{
+	return _trap ? _trap->onHeroDeath(dead, position) : position;
+}
+
+bool GameLayer::replaceStageMap(int id, const string &name, const string &mapFile)
+{
+	Stage *target = nullptr;
+	for (const auto &stage : _stages)
+	{
+		if (stage->id == id)
+			target = stage.get();
+	}
+	if (!target)
+		return false;
+
+	auto map = TMXTiledMap::create(mapFile.c_str());
+	if (!map)
+		return false;
+
+	// The new map goes where the old one is, and takes its place.
+	map->setPositionX(target->originX);
+	addChild(map, kMapOrder);
+	if (target->map)
+		target->map->removeFromParent();
+	target->map = map;
+	if (target->id == kMainStage)
+		currentMap = map; // the one other place that still points at the battle's map
+
+	target->name = name;
+	target->bgFile = target->arena ? format("Maps/Duels/map_bg{}.png", name) : format("Maps/map_bg{}.png", name);
+
+	// The background shows if this is the stage on screen.
+	const bool onScreen = observerStage().id == target->id;
+	CCLOG("replaceStageMap: stage %d (arena %d) map %s, background %s (%s), on screen %d, background layer %s",
+		  target->id, target->arena ? 1 : 0, mapFile.c_str(), target->bgFile.c_str(),
+		  FileUtils::sharedFileUtils()->isFileExist(target->bgFile) ? "found" : "MISSING",
+		  onScreen ? 1 : 0, _bgLayer ? "set" : "NULL");
+	if (_bgLayer && onScreen)
+		_bgLayer->setBackground(target->bgFile, target->arena);
+
+	return true;
+}
+
+const Stage &GameLayer::observerStage() const
+{
+	CharacterBase *observed = currentPlayer;
+	if (ougisChar)
+		observed = ougisChar;
+	else if (controlChar)
+		observed = controlChar;
+	return observed ? observed->stage() : mainStage();
 }
 
 void GameLayer::initGard()
@@ -696,6 +853,8 @@ void GameLayer::applyVeil()
 
 		_veilLayer->setColor(ccc3(_veil.red(), _veil.green(), _veil.blue()));
 		_veilLayer->setOpacity(static_cast<GLubyte>(_veil.opacity()));
+		if (!_veilLayer->isVisible())
+			scene->reorderChild(_veilLayer, kGameLayerOrder); // after (above) the invert layers
 		_veilLayer->setVisible(true);
 		return;
 	}
@@ -712,20 +871,9 @@ void GameLayer::applyVeil()
 		scene->addChild(_roundVeilNode, kGameLayerOrder);
 	}
 
-	Vec2 center(winSize.width / 2, winSize.height / 2);
-	if (currentPlayer)
-	{
-		const Size size = currentPlayer->getContentSize();
-		center = scene->convertToNodeSpace(currentPlayer->convertToWorldSpace(Vec2(size.width / 2, size.height / 2)));
-	}
-
-	// The radius that reaches the farthest corner, so a full circle covers
-	// everything (plus some room for a screen shake moving the scene about).
-	const Vec2 corners[4] = { Vec2(0, 0), Vec2(winSize.width, 0), Vec2(0, winSize.height), Vec2(winSize.width, winSize.height) };
+	Vec2 center;
 	float fullRadius = 0.0f;
-	for (const Vec2 &corner : corners)
-		fullRadius = (std::max)(fullRadius, (corner - center).getLength());
-	fullRadius += 48.0f;
+	getRoundEffectGeometry(scene, center, fullRadius);
 
 	const float radius = fullRadius * _veil.radiusFraction();
 	_roundVeilNode->clear();
@@ -734,7 +882,170 @@ void GameLayer::applyVeil()
 		_roundVeilNode->drawDot(center, radius,
 			ccc4f(_veil.red() / 255.0f, _veil.green() / 255.0f, _veil.blue() / 255.0f, _veil.opacity() / 255.0f));
 	}
+	if (!_roundVeilNode->isVisible())
+		scene->reorderChild(_roundVeilNode, kGameLayerOrder); // after (above) the invert layers
 	_roundVeilNode->setVisible(true);
+}
+
+void GameLayer::getRoundEffectGeometry(Node *scene, Vec2 &center, float &fullRadius)
+{
+	center = Vec2(winSize.width / 2, winSize.height / 2);
+	if (currentPlayer)
+	{
+		// The hero's position is in this layer's coordinates, which handles the
+		// camera scroll and zoom on the way to the screen.
+		center = scene->convertToNodeSpace(convertToWorldSpace(currentPlayer->getBodyCenter()));
+	}
+
+	// The radius that reaches the farthest corner, so a full circle covers
+	// everything (plus some room for a screen shake moving the scene about).
+	const Vec2 corners[4] = { Vec2(0, 0), Vec2(winSize.width, 0), Vec2(0, winSize.height), Vec2(winSize.width, winSize.height) };
+	fullRadius = 0.0f;
+	for (const Vec2 &corner : corners)
+		fullRadius = (std::max)(fullRadius, (corner - center).getLength());
+	fullRadius += 48.0f;
+}
+
+void GameLayer::clearInvertCaster()
+{
+	if (!_invertCaster)
+		return;
+
+	_invertCaster->release();
+	_invertCaster = nullptr;
+}
+
+void GameLayer::setInvertCaster(CharacterBase *caster)
+{
+	if (_invertCaster == caster)
+		return;
+
+	clearInvertCaster();
+	_invertCaster = caster;
+	if (_invertCaster)
+		_invertCaster->retain(); // so it can always be put right, even if it leaves the field meanwhile
+}
+
+void GameLayer::showInvert(CharacterBase *caster, int mode, float seconds, bool round)
+{
+	if (_invert.trigger(mode, seconds, round) != 0)
+		setInvertCaster(caster);
+}
+
+int GameLayer::showInvertHeld(CharacterBase *caster, int mode, float failsafeSeconds, bool round)
+{
+	const int id = _invert.triggerHeld(mode, failsafeSeconds, round);
+	if (id != 0)
+		setInvertCaster(caster);
+	return id;
+}
+
+void GameLayer::applyInvert()
+{
+	if (!_invert.isActive())
+	{
+		if (_invertLayer)
+			_invertLayer->setVisible(false);
+		if (_invertCircle)
+			_invertCircle->setVisible(false);
+		if (_invertComp)
+			_invertComp->clear(InvertCompositor::Batches{ skillEffectBatch, damageEffectBatch, shadowBatch });
+		clearInvertCaster();
+		return;
+	}
+
+	auto scene = getParent();
+	if (!scene)
+		return;
+
+	const int mode = _invert.mode();
+	const bool round = _invert.isRound();
+	// Modes 1, 3 and 4 invert the whole picture; in modes 1 and 4 what should stay
+	// normal then wears the inverting shader, which turns it back (see
+	// InvertCompositor.hpp). Mode 2 inverts only what wears the shader.
+	const bool overlay = mode != ScreenInvert::Self;
+
+	Vec2 center;
+	float fullRadius = 0.0f;
+	getRoundEffectGeometry(scene, center, fullRadius);
+	const float radius = fullRadius * _invert.radiusFraction();
+
+	// Whichever invert layer becomes visible goes on top of the game world and
+	// underneath the veils (a veil that is showing is moved above it).
+	auto putAboveWorld = [&](Node *node)
+	{
+		scene->reorderChild(node, kGameLayerOrder);
+		if (_veilLayer && _veilLayer->isVisible())
+			scene->reorderChild(_veilLayer, kGameLayerOrder);
+		if (_roundVeilNode && _roundVeilNode->isVisible())
+			scene->reorderChild(_roundVeilNode, kGameLayerOrder);
+	};
+
+	// White, drawn with a blend that turns what is under it into its negative.
+	if (overlay && !round)
+	{
+		if (!_invertLayer)
+		{
+			_invertLayer = LayerColor::create(ccc4(255, 255, 255, 255), winSize.width, winSize.height);
+			_invertLayer->setBlendFunc(ccBlendFunc{ GL_ONE_MINUS_DST_COLOR, GL_ZERO });
+			scene->addChild(_invertLayer, kGameLayerOrder);
+		}
+		if (!_invertLayer->isVisible())
+			putAboveWorld(_invertLayer);
+		_invertLayer->setVisible(true);
+	}
+	else if (_invertLayer)
+	{
+		_invertLayer->setVisible(false);
+	}
+
+	// The same inside a circle. The dot is white inside and fully transparent
+	// outside, and this blend leaves what is under the transparent part alone.
+	if (overlay && round)
+	{
+		if (!_invertCircle)
+		{
+			_invertCircle = CCDrawNode::create();
+			_invertCircle->setBlendFunc(ccBlendFunc{ GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA });
+			scene->addChild(_invertCircle, kGameLayerOrder);
+		}
+
+		_invertCircle->clear();
+		if (radius > 0.5f)
+			_invertCircle->drawDot(center, radius, ccc4f(1.0f, 1.0f, 1.0f, 1.0f));
+
+		if (!_invertCircle->isVisible())
+			putAboveWorld(_invertCircle);
+		_invertCircle->setVisible(true);
+	}
+	else if (_invertCircle)
+	{
+		_invertCircle->setVisible(false);
+	}
+
+	// What wears the shader (everything but mode 3). For a circle it only inverts the
+	// pixels inside it, using the circle's place on the real screen.
+	const InvertCompositor::Batches batches{ skillEffectBatch, damageEffectBatch, shadowBatch };
+	if (!_invertComp)
+		_invertComp = std::make_unique<InvertCompositor>();
+
+	if (mode != ScreenInvert::All)
+	{
+		auto view = Director::sharedDirector()->getOpenGLView();
+		const float scaleX = view->getScaleX();
+		const float scaleY = view->getScaleY();
+		const CCRect &viewport = view->getViewPortRect();
+		const Vec2 world = scene->convertToWorldSpace(center);
+
+		InvertShader::setCircle(round,
+			world.x * scaleX + viewport.origin.x, world.y * scaleY + viewport.origin.y,
+			radius, scaleX, scaleY);
+		_invertComp->update(this, batches, _invertCaster, mode);
+	}
+	else
+	{
+		_invertComp->clear(batches);
+	}
 }
 
 void GameLayer::updateViewPoint(float dt)
@@ -744,8 +1055,15 @@ void GameLayer::updateViewPoint(float dt)
 	_zoom.update(dt);
 	_shake.update(dt);
 	_veil.update(dt);
+	_invert.update(dt);
+	_mapChange->tick(dt);
+	_trap->tick(dt);
+	syncBackground();
+	if (isDuelMode())
+		_duel->keepBenchOnActive();
 	_battleRuntimeSystem->updateViewPoint(this);
 	applyShake();
+	applyInvert();
 	applyVeil();
 }
 

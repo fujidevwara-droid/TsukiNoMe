@@ -544,6 +544,7 @@ public:
 		}
 
 		setPosition(getSpawnPoint());
+		_stageId = getGameLayer()->stageIdAtX(getSpawnPoint().x); // a hero that fell inside a trap map respawns on the battle's map
 
 		if (getPosition().equals(getSpawnPoint()))
 		{

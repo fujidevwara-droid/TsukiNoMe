@@ -130,11 +130,11 @@ void CCRenderTexture::listenToForeground(cocos2d::CCObject *obj)
     glGenFramebuffers(1, &m_uFBO);
     glBindFramebuffer(GL_FRAMEBUFFER, m_uFBO);
     
-    m_pTexture->setAliasTexParameters();
+    m_pTexture->setAntiAliasTexParameters();
     
     if ( m_pTextureCopy )
     {
-        m_pTextureCopy->setAliasTexParameters();
+        m_pTextureCopy->setAntiAliasTexParameters();
     }
     
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_pTexture->getName(), 0);
@@ -332,7 +332,7 @@ bool CCRenderTexture::initWithWidthAndHeight(int w, int h, CCTexture2DPixelForma
         // check if it worked (probably worth doing :) )
         CCAssert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE, "Could not attach texture to framebuffer");
 
-        m_pTexture->setAliasTexParameters();
+        m_pTexture->setAntiAliasTexParameters();
 
         // retained
         setSprite(CCSprite::createWithTexture(m_pTexture));

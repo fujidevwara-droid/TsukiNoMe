@@ -248,6 +248,37 @@ public:
 		return nullptr;
 	}
 
+	// Summons that keep running when their owner is benched (Kurama, Saso,
+	// Sanshouuo, Masks, DogWall, Slug...) follow their master's position, and a
+	// benched master is hidden and frozen wherever it was benched. Keeping every
+	// hidden benched hero on its side's active hero makes them follow whoever is
+	// actually fighting. Safe because a benched hero is invisible, untargetable
+	// (_isBenched ignores hits), has no AI and is not in _CharacterArray, so where it
+	// "stands" matters to nothing else. A hero still finishing its action while it
+	// departs is visible and is left alone.
+	void keepBenchOnActive()
+	{
+		if (_benched.empty())
+			return;
+
+		for (bool playerSide : { true, false })
+		{
+			Hero *active = activeHero(playerSide);
+			if (!active)
+				continue;
+
+			for (Hero *hero : _benched)
+			{
+				if (!hero || hero->isVisible() || !hero->_isBenched || !isRosterMember(playerSide, hero))
+					continue;
+
+				hero->setPosition(active->getPosition());
+				hero->_stageId = active->_stageId;
+				hero->_isFlipped = active->_isFlipped;
+			}
+		}
+	}
+
 	// Everything that has to be unloaded at teardown: the field plus the bench.
 	std::vector<Hero *> allHeroes() const
 	{
@@ -260,6 +291,9 @@ public:
 	// The human swaps to the hero waiting in bench slot `slot`.
 	void swapPlayer(int slot)
 	{
+		if (_owner->isTrapActive())
+			return; // nobody changes heroes while a trap map is going on
+
 		Side &s = side(true);
 		auto *controlled = static_cast<Hero *>(_owner->currentPlayer);
 		if (slot < 0 || slot >= static_cast<int>(s.bench.size()) || !controlled || controlled->getState() == State::DEAD)
@@ -301,6 +335,9 @@ public:
 	// The AI side swaps like a player would, just without the HUD buttons.
 	void swapEnemy(int slot)
 	{
+		if (_owner->isTrapActive())
+			return;
+
 		Side &s = side(false);
 		if (slot < 0 || slot >= static_cast<int>(s.bench.size()))
 			return;
@@ -544,6 +581,10 @@ public:
 		{
 			auto *deadHero = static_cast<Hero *>(death.hero);
 
+			// A hero that fell inside a trap map ends the trap; its replacement then comes in
+			// where it was caught, on the battle's map, not inside the trap map.
+			const Vec2 deathPosition = _owner->trapHeroDied(deadHero, death.position);
+
 			// The side comes from the roster, not from the hero's group: a hero
 			// Ino possessed fights for the other group but is still its
 			// owner's, and its death is its owner's loss.
@@ -636,7 +677,7 @@ public:
 			if (takenBack)
 				activate(incoming, takenBack->getPosition(), takenBack->_isFlipped, playerSide);
 			else
-				activate(incoming, death.position, death.flipped, playerSide);
+				activate(incoming, deathPosition, death.flipped, playerSide);
 
 			if (playerSide)
 			{
@@ -898,6 +939,7 @@ private:
 										[hero](const Departing &d) { return d.hero == hero; }),
 						 _departing.end());
 
+		hero->_stageId = _owner->stageIdAtX(pos.x); // it appears where the hero it replaces was
 		hero->leaveBench(pos, flipped);
 
 		auto &field = _owner->_CharacterArray;

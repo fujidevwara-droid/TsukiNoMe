@@ -10,6 +10,10 @@ public:
 
 	static Effect *create(const string &szImage, CharacterBase *attacker);
 
+	// The character this effect belongs to. Only ever compared, never dereferenced: it can
+	// outlive the character.
+	CharacterBase *getAttacker() const { return at; }
+
 private:
 	FiniteTimeAction *createEffectAnimation(const string &file, size_t frameCount, uint8_t fps, bool isLoop);
 	FiniteTimeAction *createFontAnimation();

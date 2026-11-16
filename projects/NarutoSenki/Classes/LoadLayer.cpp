@@ -361,6 +361,7 @@ void LoadLayer::onLoadFinish(float dt)
 
 	_bgLayer = BGLayer::create();
 	_bgLayer->initBg(_gameLayer->mapId, isDuelMode());
+	_gameLayer->_bgLayer = _bgLayer;
 
 	_hudLayer->initHeroInterface();
 	_gameLayer->invokeAllCallbacks();

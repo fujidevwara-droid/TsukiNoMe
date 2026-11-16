@@ -173,7 +173,7 @@ class Shikamaru : public Hero
 					float atkRangeX = kAttackRange;
 					if (abs(distanceX) <= atkRangeX)
 					{
-						auto trap = Monster::create();
+						auto trap = spawned(Monster::create());
 						trap->setMaster(this);
 						trap->setID(trapType, Role::Mon, getGroup());
 						trap->setPosition(Vec2(hero->getPositionX(), hero->getPositionY()));

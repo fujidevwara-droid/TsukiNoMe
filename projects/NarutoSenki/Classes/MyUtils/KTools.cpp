@@ -862,8 +862,10 @@ void KTools::setNodeGrayscale(CCNode *node, bool enable)
 	{
 		if (dynamic_cast<ui::Widget *>(parent))
 		{
+			// Qualified on purpose: Widget overrides getChildren() to return only its
+			// widget children, and the renderer sprites are plain CCNode children.
 			CCObject *child = nullptr;
-			CCARRAY_FOREACH(parent->getChildren(), child)
+			CCARRAY_FOREACH(parent->CCNode::getChildren(), child)
 			{
 				if (auto sprite = dynamic_cast<CCSprite *>(child))
 					sprite->setShaderProgram(program);
