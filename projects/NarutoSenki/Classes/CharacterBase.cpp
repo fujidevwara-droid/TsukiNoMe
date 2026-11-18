@@ -1185,6 +1185,16 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 					auto call = CallFunc::create(std::bind(&CharacterBase::setTrapMap, this, keyValue));
 					list.pushBack(call);
 				}
+				else if (key == "setBanishMap" || key == "setMapBanish")
+				{
+					auto call = CallFunc::create(std::bind(&CharacterBase::setBanishMap, this, keyValue));
+					list.pushBack(call);
+				}
+				else if (key == "toggleTrapDimension")
+				{
+					auto call = CallFunc::create(std::bind(&CharacterBase::toggleTrapDimension, this, keyValue));
+					list.pushBack(call);
+				}
 				else if (key == "setMapChange" || key == "setChangeMap")
 				{
 					auto call = CallFunc::create(std::bind(&CharacterBase::setMapChange, this, keyValue));
@@ -1998,7 +2008,7 @@ static vector<string> splitFields(const string& args)
 
 // "<mapname>[, <style>[, <seconds>[, <debuff>]]]": a field may be left empty
 // ("KamuiDimension,,,0"). The seconds default to 10 when empty.
-void CharacterBase::setTrapMap(const string& args)
+void CharacterBase::applyTrapTag(const string& args, bool banish)
 {
 	const vector<string> parts = splitFields(args);
 	if (parts.empty() || parts[0].empty())
@@ -2010,7 +2020,82 @@ void CharacterBase::setTrapMap(const string& args)
 
 	// A summon or clone using it traps on its owner's behalf.
 	CharacterBase* caster = getMaster() ? getMaster() : this;
-	getGameLayer()->armTrap(caster, parts[0], style, seconds, debuff);
+	getGameLayer()->armTrap(caster, parts[0], style, seconds, debuff, banish);
+}
+
+// "<cooldown>[, <cbuff>]": see the declaration.
+void CharacterBase::toggleTrapDimension(const string& args)
+{
+	const vector<string> parts = splitFields(args);
+	const float cooldown = (parts.size() > 0 && !parts[0].empty()) ? (float)atof(parts[0].c_str()) : 0.0f;
+	const bool hasCbuff = parts.size() > 1 && !parts[1].empty();
+	const int cbuff = hasCbuff ? atoi(parts[1].c_str()) : 0;
+
+	switch (getGameLayer()->toggleTrapDimension(this))
+	{
+	case TrapToggle::Toggled:
+		applyCustomCooldown(cooldown);
+		break;
+	case TrapToggle::Busy:
+		CCLOG("toggleTrapDimension: the trap map is changing, nothing done");
+		break;
+	case TrapToggle::None:
+		// No trap map of its own: an ordinary skill-change buff, the skill keeps its cooldown.
+		if (hasCbuff)
+			setBuff(cbuff);
+		break;
+	}
+}
+
+// Replaces the cooldown of the skill that is running (skills 1-3) with `seconds`: the
+// character's own timer, and the button's countdown and animation when this is the hero the
+// human plays.
+void CharacterBase::applyCustomCooldown(float seconds)
+{
+	if (seconds <= 0.0f)
+		return; // no number given: the skill's own cooldown stays
+
+	seconds = (std::max)(seconds, 0.1f);
+	HudLayer* hud = getGameLayer()->getHudLayer();
+	ActionButton* button = nullptr;
+
+	switch (_activeSkill)
+	{
+	case SKILL1:
+		_isCanSkill1 = false;
+		unschedule(schedule_selector(CharacterBase::enableSkill1));
+		scheduleOnce(schedule_selector(CharacterBase::enableSkill1), seconds);
+		button = hud ? hud->skill1Button : nullptr;
+		break;
+	case SKILL2:
+		_isCanSkill2 = false;
+		unschedule(schedule_selector(CharacterBase::enableSkill2));
+		scheduleOnce(schedule_selector(CharacterBase::enableSkill2), seconds);
+		button = hud ? hud->skill2Button : nullptr;
+		break;
+	case SKILL3:
+		_isCanSkill3 = false;
+		unschedule(schedule_selector(CharacterBase::enableSkill3));
+		scheduleOnce(schedule_selector(CharacterBase::enableSkill3), seconds);
+		button = hud ? hud->skill3Button : nullptr;
+		break;
+	default:
+		CCLOG("toggleTrapDimension: the cooldown can only be set from skills 1-3");
+		return;
+	}
+
+	// The button counts its own cooldown (the number on it and the sweeping animation).
+	// Starting it again with another cooldown replaces both; the button's usual cooldown is
+	// put back afterwards, for the next time.
+	if (isActivePlayerBody() && button)
+	{
+		const uint32_t usual = button->getCD();
+		button->setCD(static_cast<uint32_t>(seconds * 1000));
+		button->_isColdChanged = true;
+		button->beganAnimation(false);
+		button->setCD(usual);
+		button->_isColdChanged = true;
+	}
 }
 
 // "<mapname>[, <style>[, <seconds>]]": a field may be left empty ("KamuiDimension,,8").
@@ -4428,6 +4513,8 @@ void CharacterBase::sAttack(ABType type)
 {
 	if (_state == State::IDLE || _state == State::WALK || _state == State::NATTACK)
 	{
+		_activeSkill = type;
+
 		if (!_isVisable)
 		{
 			if (getName() == HeroEnum::Konan ||
@@ -4504,6 +4591,8 @@ void CharacterBase::oAttack(ABType type)
 {
 	if (_state == State::IDLE || _state == State::WALK || _state == State::NATTACK)
 	{
+		_activeSkill = type;
+
 		if (isActivePlayerBody())
 		{
 			getGameLayer()->setSkillFinish(false);

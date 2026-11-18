@@ -12,14 +12,16 @@
 // mapname  a name or a number: Maps/<mapname>.tmx in the normal game, Maps/Duels/<mapname>.tmx
 //          in Duels and Arcade (and map_bg<mapname>.png next to it for the background).
 // style    0 = change at once, 1 = fade to black, change the map behind it, fade back in
-//          (the same sequence going back).
+//          (the same sequence going back), 2 = the screen twists into a spiral and sinks into
+//          the dark, the map changes, and it comes back out of the spiral the same way
+//          (Systems/ScreenSwirl.hpp).
 // seconds  no number (or 0): the change is permanent. Otherwise the map goes back to the
 //          one it was after that many seconds, counted from when the new map is in place.
 //
 // This is only a change of scenery: the map and the background are swapped, and everything
 // else stays exactly where it is, units included. (Taking units somewhere else is what
-// setTrapMap is for.) It changes the map of the stage the caster is on, which is the
-// battle's own map unless the caster is inside a trap map.
+// setTrapMap is for.) It changes the battle's own map. It does nothing for a caster that
+// is inside a trap map: changing that map would defeat the purpose of the trap.
 //
 // The new map has to suit the units: they are not moved, so on a smaller map one that
 // stands beyond the edge is pushed back in by the normal edge handling when it next
@@ -46,6 +48,13 @@ public:
 
 		if (mapName.empty())
 			return;
+
+		// Every stage but the main one is a trap map, and a trap map stays as it is.
+		if (stageId != kMainStage)
+		{
+			CCLOG("setMapChange: ignored, it does not work inside a trap map");
+			return;
+		}
 
 		if (isBusy())
 		{
@@ -147,6 +156,13 @@ private:
 			_owner->_veil.triggerFade(0, 0, 0, 255, kFadeInSeconds, kHoldSeconds, kFadeOutSeconds);
 			_swapWaiting = true;
 			_swapTimer = kFadeInSeconds;
+			_swapAction = std::move(action);
+		}
+		else if (style == 2)
+		{
+			_owner->startSwirl(ScreenSwirl::kInSeconds, ScreenSwirl::kHoldSeconds, ScreenSwirl::kOutSeconds);
+			_swapWaiting = true;
+			_swapTimer = ScreenSwirl::kInSeconds;
 			_swapAction = std::move(action);
 		}
 		else

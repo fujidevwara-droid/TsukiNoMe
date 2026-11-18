@@ -41,3 +41,11 @@ constexpr int kMainStage = 0;
 // Stage n sits at x = n * kStageSpacing, so stages never overlap and anything that
 // works by distance sees units on another stage as very far away.
 constexpr float kStageSpacing = 100000.0f;
+
+// What toggleTrapDimension found (TrapSystem::toggleDimension).
+enum class TrapToggle
+{
+	None,	 // the hero has no trap map going: the command does something else
+	Toggled, // it went in or out of its trap map
+	Busy	 // its trap map is starting, ending or already being moved through: nothing now
+};

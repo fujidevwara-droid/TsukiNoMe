@@ -2,6 +2,7 @@
 #include "CharacterBase.h"
 #include "GameLayer.h"
 #include "Systems/InvertShader.hpp"
+#include "Systems/SwirlShader.hpp"
 #include "Systems/InvertCompositor.hpp"
 #include "Systems/MapChangeSystem.hpp"
 #include "Systems/TrapSystem.hpp"
@@ -413,10 +414,15 @@ void GameLayer::requestMapChange(int stageId, const string &mapName, int style, 
 		_mapChange->request(stageId, mapName, style, seconds);
 }
 
-void GameLayer::armTrap(CharacterBase *caster, const string &mapName, int style, float seconds, int debuff)
+void GameLayer::armTrap(CharacterBase *caster, const string &mapName, int style, float seconds, int debuff, bool banish)
 {
 	if (_trap)
-		_trap->arm(caster, mapName, style, seconds, debuff);
+		_trap->arm(caster, mapName, style, seconds, debuff, banish);
+}
+
+TrapToggle GameLayer::toggleTrapDimension(CharacterBase *who)
+{
+	return _trap ? _trap->toggleDimension(who) : TrapToggle::None;
 }
 
 void GameLayer::trapHit(CharacterBase *caster, CharacterBase *victim)
@@ -940,6 +946,75 @@ int GameLayer::showInvertHeld(CharacterBase *caster, int mode, float failsafeSec
 	return id;
 }
 
+void GameLayer::startSwirl(float inSeconds, float holdSeconds, float outSeconds)
+{
+	auto scene = getParent();
+	if (scene && !_swirlRT)
+	{
+		_swirlRT = RenderTexture::create(static_cast<int>(winSize.width), static_cast<int>(winSize.height));
+		if (_swirlRT)
+		{
+			// Its sprite shows the picture of the world, through the swirl shader.
+			_swirlRT->setPosition(Vec2(winSize.width / 2, winSize.height / 2));
+			if (auto program = SwirlShader::program())
+				_swirlRT->getSprite()->setShaderProgram(program);
+			_swirlRT->setVisible(false);
+			scene->addChild(_swirlRT, kGameLayerOrder);
+		}
+	}
+
+	if (!_swirlRT)
+	{
+		// No way to draw a spiral: at least go dark and come back.
+		_veil.triggerFade(0, 0, 0, 255, inSeconds, holdSeconds, outSeconds);
+		return;
+	}
+
+	_swirl.start(inSeconds, holdSeconds, outSeconds);
+}
+
+void GameLayer::applySwirl()
+{
+	if (!_swirlRT)
+		return;
+
+	if (!_swirl.isActive())
+	{
+		_swirlRT->setVisible(false);
+		return;
+	}
+
+	auto scene = getParent();
+	if (!scene)
+		return;
+
+	// The world, as it is on screen now (background and game layer, without the HUD, the
+	// veil and the inverting layers), into the texture.
+	_swirlRT->beginWithClear(0, 0, 0, 1);
+	if (_bgLayer)
+		_bgLayer->visit();
+	visit();
+	_swirlRT->end();
+
+	// The spiral turns around the hero the human plays.
+	Vec2 center(winSize.width / 2, winSize.height / 2);
+	if (currentPlayer)
+		center = convertToWorldSpace(currentPlayer->getBodyCenter());
+	const float cx = (std::min)(0.85f, (std::max)(0.15f, center.x / winSize.width));
+	const float cy = (std::min)(0.85f, (std::max)(0.15f, center.y / winSize.height));
+
+	const float amount = _swirl.amount();
+	SwirlShader::setParams(amount * ScreenSwirl::kMaxTwist, amount * ScreenSwirl::kMaxPull, amount,
+						   winSize.width / winSize.height, cx, cy);
+
+	if (!_swirlRT->isVisible())
+	{
+		// On top of the world and anything else at this level.
+		scene->reorderChild(_swirlRT, kGameLayerOrder);
+	}
+	_swirlRT->setVisible(true);
+}
+
 void GameLayer::applyInvert()
 {
 	if (!_invert.isActive())
@@ -1056,6 +1131,7 @@ void GameLayer::updateViewPoint(float dt)
 	_shake.update(dt);
 	_veil.update(dt);
 	_invert.update(dt);
+	_swirl.update(dt);
 	_mapChange->tick(dt);
 	_trap->tick(dt);
 	syncBackground();
@@ -1064,6 +1140,7 @@ void GameLayer::updateViewPoint(float dt)
 	_battleRuntimeSystem->updateViewPoint(this);
 	applyShake();
 	applyInvert();
+	applySwirl();
 	applyVeil();
 }
 

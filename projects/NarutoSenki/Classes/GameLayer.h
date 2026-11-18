@@ -31,6 +31,7 @@
 #include "Systems/ScreenVeil.hpp"
 #include "Systems/ScreenInvert.hpp"
 #include "Systems/Stage.hpp"
+#include "Systems/ScreenSwirl.hpp"
 
 class BGLayer;
 class CharacterBase;
@@ -209,6 +210,14 @@ public:
 	bool replaceStageMap(int id, const string &name, const string &mapFile);
 	int _lastStageId = kMainStage;
 
+	// The spiral transition (style 2 of setMapChange / setTrapMap, see Systems/ScreenSwirl.hpp):
+	// the world is drawn into a texture every frame and shown twisted by a shader, above the
+	// world and below the HUD. Without a texture to draw into it falls back to a fade to black.
+	ScreenSwirl _swirl;
+	RenderTexture *_swirlRT = nullptr;
+	void startSwirl(float inSeconds, float holdSeconds, float outSeconds);
+	void applySwirl();
+
 	// The background image follows the stage that is on screen.
 	BGLayer *_bgLayer = nullptr;
 	int _shownBgStage = kMainStage;
@@ -222,7 +231,8 @@ public:
 
 	// XML <e type="setTrapMap">: see Systems/TrapSystem.hpp.
 	std::unique_ptr<TrapSystem> _trap;
-	void armTrap(CharacterBase *caster, const string &mapName, int style, float seconds, int debuff);
+	void armTrap(CharacterBase *caster, const string &mapName, int style, float seconds, int debuff, bool banish = false);
+	TrapToggle toggleTrapDimension(CharacterBase *who);					   // see TrapSystem::toggleDimension
 	void trapHit(CharacterBase *caster, CharacterBase *victim);		   // an attack of `caster` landed on `victim`
 	bool isTrapActive() const;										   // Duels/Arcade refuse hero swaps while true
 	Vec2 trapHeroDied(CharacterBase *dead, const Vec2 &position);	   // see TrapSystem::onHeroDeath

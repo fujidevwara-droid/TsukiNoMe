@@ -7,23 +7,36 @@
 #include <unordered_map>
 #include <unordered_set>
 
-// The XML command
+// The XML commands
 //
 //     <e type="setTrapMap">mapname, transitionstyle, seconds, debuff</e>
+//     <e type="setBanishMap">mapname, transitionstyle, seconds, debuff</e>
+//     <e type="toggleTrapDimension">cooldown, cbuff</e>
 //
 // mapname  a name or a number, always from Maps/Duels/ (Maps/Duels/<mapname>.tmx, with
 //          map_bg<mapname>.png next to it), in the normal game as well as in Duels/Arcade.
 //          A named map ("KamuiDimension") is never picked as a random duel map; a number
 //          is handy for trying a trap on an existing arena.
-// style    0 = at once, 1 = fade to black, move, fade back in (the same going back). The
-//          fade only plays when the human is among those being moved.
+// style    0 = at once, 1 = fade to black, move, fade back in (the same going back),
+//          2 = the screen twists into a spiral and sinks into the dark, then comes back out
+//          of it (Systems/ScreenSwirl.hpp). The transition only plays when the human is among
+//          those being moved.
 // seconds  how long the trap lasts (default 10).
 // debuff   read and ignored for now: empty or 0 means none.
 //
-// What it does: the heroes the attack hits are taken into the trap map together with the
-// hero that used it, and their summons, clones, puppets and mons. The trap map is a stage of
-// its own beside the battle (Systems/Stage.hpp) and runs by the duel arena rules whatever
-// the game mode; the battle keeps going on the main stage meanwhile.
+// setTrapMap: the heroes the attack hits are taken into the trap map together with the hero
+// that used it, and their summons, clones, puppets and mons. setBanishMap is the same
+// except that the hero that used it stays where it is: only the enemies it hit are sent
+// away. The trap map is a stage of its own beside the battle (Systems/Stage.hpp) and runs by
+// the duel arena rules whatever the game mode; the battle keeps going on the main stage.
+//
+// toggleTrapDimension: the hero that made a trap map (either kind) goes into it if it is
+// outside and comes out of it if it is inside, with its own summons; it goes back to where it
+// last went in. Only the hero that made the trap can do this, and only while it lasts.
+// "cooldown" (seconds) then becomes the cooldown of the skill that used it, instead of the
+// skill's own. Without a trap map of its own going, the command does not touch anything of
+// the trap and acts like a skill-change buff (setBuff with the "cbuff" number) and the skill
+// keeps its normal cooldown. See CharacterBase::toggleTrapDimension.
 //
 // Who is caught: the command arms the hero for a short while (kArmSeconds), and counts the
 // hits from just before it too (kLookbackSeconds), so it does not matter much whether the
@@ -31,21 +44,22 @@
 // hit in that time (its own, or its projectiles') is caught; when the first one is caught
 // the rest of the window is cut short (kGraceSeconds) so a multi-hit or area attack gets its
 // victims together. If nothing was hit, nothing happens.
-//
-// The log (CCLOG) tells what it is doing: "setTrapMap: ..." lines say armed / caught /
-// started / why it did not, and why and how it ended.
 // Towers, flogs, benched heroes and heroes an attack could not damage are never caught.
 //
 // Everybody goes back when the time is up, or all caught enemies are gone (dead, or
-// respawned at their base), or the hero that used it is gone. Each goes back to where it
-// was when it was caught. In Duels/Arcade a hero dying inside ends the trap at once, and its
+// respawned at their base), or the hero that made the trap is gone (dead). Each caught hero
+// goes back to where it was when it was caught, and the hero that made the trap to where it
+// last went in. In Duels/Arcade a hero dying inside ends the trap at once, and its
 // replacement comes in where the fallen hero was caught. While a trap is going on, hero
 // swaps in Duels/Arcade are refused and no second trap can start.
+//
+// The log (CCLOG) tells what it is doing: "setTrapMap: ..." lines say armed / caught /
+// started / why it did not, and why and how it ended.
 class TrapSystem
 {
 public:
-	static constexpr float kArmSeconds = 0.6f;	  // how long an armed hero catches what it hits
-	static constexpr float kGraceSeconds = 0.25f; // what is left of that after the first catch
+	static constexpr float kArmSeconds = 0.6f;		// how long an armed hero catches what it hits
+	static constexpr float kGraceSeconds = 0.25f;	// what is left of that after the first catch
 	static constexpr float kLookbackSeconds = 0.5f; // hits this recent still count when the command arrives
 	static constexpr float kDefaultSeconds = 10.0f;
 
@@ -55,13 +69,17 @@ public:
 	static constexpr float kFadeOutSeconds = 0.27f;
 
 	explicit TrapSystem(GameLayer *owner) : _owner(owner) {}
-	~TrapSystem() { releaseEntries(); }
+	~TrapSystem()
+	{
+		releaseEntries();
+		releaseCaster();
+	}
 
 	// A trap is starting, going on, or ending.
 	bool isActive() const { return _phase != Phase::Idle; }
 
-	// The XML command, from the hero that used it.
-	void arm(CharacterBase *caster, const string &mapName, int style, float seconds, int /*debuff*/)
+	// The XML command, from the hero that used it. banish: the hero stays out of it.
+	void arm(CharacterBase *caster, const string &mapName, int style, float seconds, int /*debuff*/, bool banish = false)
 	{
 		if (!caster || mapName.empty() || !caster->isPlayerOrCom())
 		{
@@ -83,6 +101,7 @@ public:
 		armed.units.pushBack(caster);
 		armed.name = mapName;
 		armed.style = style;
+		armed.banish = banish;
 		armed.seconds = seconds > 0.0f ? seconds : kDefaultSeconds;
 		armed.windowLeft = kArmSeconds;
 
@@ -100,8 +119,9 @@ public:
 			}
 		}
 
-		CCLOG("setTrapMap: %s armed, map '%s' style %d for %.1fs, %d caught so far",
-			  caster->getName().c_str(), mapName.c_str(), style, armed.seconds, (int)armed.victimCount());
+		CCLOG("setTrapMap: %s armed (%s), map '%s' style %d for %.1fs, %d caught so far",
+			  caster->getName().c_str(), banish ? "banish" : "trap", mapName.c_str(), style, armed.seconds,
+			  (int)armed.victimCount());
 		_arms.push_back(armed);
 	}
 
@@ -128,6 +148,28 @@ public:
 			CCLOG("setTrapMap: caught %s", victim->getName().c_str());
 			return;
 		}
+	}
+
+	// toggleTrapDimension: `who` goes into its own trap map if it is outside, out of it if it
+	// is inside.
+	TrapToggle toggleDimension(CharacterBase *who)
+	{
+		if (!isActive() || !who || who != _caster)
+			return TrapToggle::None; // no trap of its own (another hero's cannot be entered)
+
+		if (_phase != Phase::Active || _swapWaiting || !casterInPlay(who))
+			return TrapToggle::Busy;
+
+		const bool goingIn = !_casterInside;
+		CCLOG("toggleTrapDimension: %s goes %s", who->getName().c_str(), goingIn ? "in" : "out");
+
+		_humanInvolved = who == _owner->currentPlayer;
+		run(_style, [this, goingIn]()
+			{
+				if (isActive() && _phase == Phase::Active && casterInPlay(_caster))
+					moveCaster(goingIn);
+			});
+		return TrapToggle::Toggled;
 	}
 
 	// Every frame (GameLayer::updateViewPoint).
@@ -177,9 +219,9 @@ public:
 		_timer -= dt;
 		if (_timer <= 0.0f || casterGone() || noVictimLeft())
 		{
-			CCLOG("setTrapMap: ending (%s)", _timer <= 0.0f ? "time is up" : casterGone() ? "the hero that used it is gone" : "no caught enemy is left");
+			CCLOG("setTrapMap: ending (%s)", _timer <= 0.0f ? "time is up" : casterGone() ? "the hero that made it is gone" : "no caught enemy is left");
 			_phase = Phase::Leaving;
-			_humanInvolved = false;
+			_humanInvolved = _casterInside && _caster == _owner->currentPlayer;
 			for (const auto &entry : _entries)
 				_humanInvolved = _humanInvolved || entry.unit == _owner->currentPlayer;
 			run(_style, [this]()
@@ -187,28 +229,42 @@ public:
 		}
 	}
 
-	// From DuelSystem::resolveDeaths: `dead` has died. If it was caught, the trap ends now
-	// (nothing may be left waiting while a replacement steps in) and the position where its
-	// replacement should appear is where it was caught, on the battle's map.
+	// From DuelSystem::resolveDeaths: `dead` has died. If it was in the trap business, the trap
+	// ends now (nothing may be left waiting while a replacement steps in) and the position where
+	// its replacement should appear is where it was caught, on the battle's map.
 	Vec2 onHeroDeath(CharacterBase *dead, const Vec2 &position)
 	{
 		if (!isActive())
 			return position;
 
-		for (const auto &entry : _entries)
+		bool member = false;
+		Vec2 back = position;
+		if (dead == _caster)
 		{
-			if (entry.unit != dead || entry.kind == Kind::Follower)
-				continue;
-
-			const Vec2 back = entry.position;
-			CCLOG("setTrapMap: ending, %s died inside", dead->getName().c_str());
-			if (_phase == Phase::Entering)
-				cancelPending();
-			else
-				eject(true);
-			return back;
+			member = true;
+			if (_casterInside)
+				back = _casterSaved; // outside, it fell on the battle's map already
 		}
-		return position;
+		else
+		{
+			for (const auto &entry : _entries)
+			{
+				if (entry.unit == dead && entry.kind == Kind::Victim)
+				{
+					member = true;
+					back = entry.position;
+				}
+			}
+		}
+		if (!member)
+			return position;
+
+		CCLOG("setTrapMap: ending, %s died", dead->getName().c_str());
+		if (_phase == Phase::Entering)
+			cancelPending();
+		else
+			eject(true);
+		return back;
 	}
 
 private:
@@ -221,7 +277,6 @@ private:
 	};
 	enum class Kind
 	{
-		Caster,
 		Victim,
 		Follower
 	};
@@ -230,6 +285,7 @@ private:
 	{
 		string name;
 		int style = 0;
+		bool banish = false;
 		float seconds = kDefaultSeconds;
 		float windowLeft = 0.0f;
 		// [0] is the hero that used the command, the rest are who it has caught. A Vector
@@ -317,6 +373,32 @@ private:
 			   std::find(units.begin(), units.end(), _owner->currentPlayer) != units.end();
 	}
 
+	static bool stillValid(CharacterBase *unit)
+	{
+		return unit && unit->getParent() && unit->getState() != State::DEAD;
+	}
+
+	// A hero that made the trap must still be in play: not benched meanwhile (Duels/Arcade).
+	static bool casterInPlay(CharacterBase *caster)
+	{
+		return stillValid(caster) && !caster->_isBenched && caster->_isVisable;
+	}
+
+	void holdCaster(CharacterBase *caster)
+	{
+		releaseCaster();
+		_caster = caster;
+		_caster->retain();
+	}
+
+	void releaseCaster()
+	{
+		if (_caster)
+			_caster->release();
+		_caster = nullptr;
+		_casterInside = false;
+	}
+
 	// An armed hero's window has closed: start the trap if anything was caught.
 	void begin(const Arm &arm)
 	{
@@ -337,12 +419,14 @@ private:
 			CCLOG("setTrapMap: map %s not found", file.c_str());
 			return;
 		}
-		CCLOG("setTrapMap: starting, map %s, %d caught", file.c_str(), (int)arm.victimCount());
+		CCLOG("setTrapMap: starting (%s), map %s, %d caught", arm.banish ? "banish" : "trap", file.c_str(), (int)arm.victimCount());
 
+		// Those who move: the caught, and the hero that used it unless it banishes.
 		vector<CharacterBase *> involved;
-		for (auto unit : arm.units)
-			involved.push_back(unit);
+		for (size_t i = arm.banish ? 1 : 0; i < arm.units.size(); ++i)
+			involved.push_back(arm.units.at(i));
 
+		holdCaster(arm.caster()); // from here on this hero is the owner of the trap
 		_phase = Phase::Entering;
 		_style = arm.style;
 		_humanInvolved = humanIsAmong(involved);
@@ -350,20 +434,9 @@ private:
 			{ enter(arm, file); });
 	}
 
-	static bool stillValid(CharacterBase *unit)
-	{
-		return unit && unit->getParent() && unit->getState() != State::DEAD;
-	}
-
-	// A hero that used the command must still be in play: not benched meanwhile (Duels/Arcade).
-	static bool casterInPlay(CharacterBase *caster)
-	{
-		return stillValid(caster) && !caster->_isBenched && caster->_isVisable;
-	}
-
-	// Runs `action` at once, or behind a fade to black (style 1) if the human is moving.
-	// Its own timer, not the veil's, decides when, so another veil replacing this one on
-	// screen cannot leave the trap hanging.
+	// Runs `action` at once, or behind a transition (style 1 fade, style 2 spiral) if the
+	// human is moving. Its own timer, not the veil's, decides when, so another veil replacing
+	// this one on screen cannot leave the trap hanging.
 	void run(int style, std::function<void()> action)
 	{
 		if (style == 1 && _humanInvolved)
@@ -371,6 +444,13 @@ private:
 			_owner->_veil.triggerFade(0, 0, 0, 255, kFadeInSeconds, kHoldSeconds, kFadeOutSeconds);
 			_swapWaiting = true;
 			_swapTimer = kFadeInSeconds;
+			_swapAction = std::move(action);
+		}
+		else if (style == 2 && _humanInvolved)
+		{
+			_owner->startSwirl(ScreenSwirl::kInSeconds, ScreenSwirl::kHoldSeconds, ScreenSwirl::kOutSeconds);
+			_swapWaiting = true;
+			_swapTimer = ScreenSwirl::kInSeconds;
 			_swapAction = std::move(action);
 		}
 		else
@@ -384,18 +464,65 @@ private:
 		_swapWaiting = false;
 		_swapAction = nullptr;
 		_phase = Phase::Idle;
+		releaseCaster();
+	}
+
+	// The followers (clones, summons, puppets, mons) of the units in `destinations`, found on
+	// stage `from`: each with where it goes, next to where its owner goes. A few passes, so that
+	// the summon of a summon is found too. Call it before the owners are moved: the offsets are
+	// taken from where they stand now.
+	vector<std::pair<CharacterBase *, Vec2>> followersOf(int from, const std::unordered_map<CharacterBase *, Vec2> &destinations)
+	{
+		vector<std::pair<CharacterBase *, Vec2>> found;
+		std::unordered_map<CharacterBase *, Vec2> placed = destinations;
+
+		vector<CharacterBase *> candidates;
+		CCObject *obj = nullptr;
+		CCARRAY_FOREACH(_owner->getChildren(), obj)
+		{
+			auto unit = dynamic_cast<CharacterBase *>(obj);
+			if (unit && unit->_stageId == from && isFollowerRole(unit) && !placed.count(unit))
+				candidates.push_back(unit);
+		}
+
+		for (int pass = 0; pass < 3; ++pass)
+		{
+			bool grew = false;
+			for (auto unit : candidates)
+			{
+				if (placed.count(unit))
+					continue;
+				auto owner = unit->getMaster();
+				if (!owner)
+					continue;
+				auto at = placed.find(owner);
+				if (at == placed.end())
+					continue;
+
+				Vec2 offset = unit->getPosition() - owner->getPosition();
+				offset.x = (std::max)(-48.0f, (std::min)(48.0f, offset.x));
+				offset.y = (std::max)(-24.0f, (std::min)(24.0f, offset.y));
+				const Vec2 where = at->second + offset;
+				placed[unit] = where;
+				found.push_back({ unit, where });
+				grew = true;
+			}
+			if (!grew)
+				break;
+		}
+		return found;
 	}
 
 	void enter(const Arm &arm, const string &file)
 	{
 		GameLayer &game = *_owner;
 
-		// Things may have changed during the fade.
+		// Things may have changed during the transition.
 		CharacterBase *caster = arm.caster();
 		if (!casterInPlay(caster))
 		{
 			CCLOG("setTrapMap: cancelled, the hero that used it is gone");
-			_phase = Phase::Idle;
+			cancelPending();
 			return;
 		}
 		vector<CharacterBase *> victims;
@@ -408,7 +535,7 @@ private:
 		if (victims.empty())
 		{
 			CCLOG("setTrapMap: cancelled, nobody caught is still there to take along");
-			_phase = Phase::Idle;
+			cancelPending();
 			return;
 		}
 
@@ -416,7 +543,7 @@ private:
 		if (!stage)
 		{
 			CCLOG("setTrapMap: map %s could not be loaded", file.c_str());
-			_phase = Phase::Idle;
+			cancelPending();
 			return;
 		}
 
@@ -424,64 +551,60 @@ private:
 		_fromStageId = caster->_stageId;
 		_stageId = stage->id;
 		_timer = arm.seconds;
+		_casterInside = false;
+		_casterSaved = caster->getPosition();
 
-		// The hero that used it first, then its victims: each on its own side's spawn points.
-		std::unordered_map<CharacterBase *, Vec2> newPosition;
-		std::unordered_set<CharacterBase *> members;
+		// The caught, each on its own side's spawn points, and what belongs to them.
+		std::unordered_map<CharacterBase *, Vec2> destinations;
 		int next[2] = { 0, 0 };
-		auto addMember = [&](CharacterBase *unit, Kind kind)
-		{
-			const int side = unit->getGroup() == Group::Akatsuki ? 1 : 0;
-			newPosition[unit] = slotPosition(*stage, unit->getGroup(), next[side]++);
-			members.insert(unit);
-			addEntry(unit, kind);
-		};
-		addMember(caster, Kind::Caster);
 		for (auto victim : victims)
-			addMember(victim, Kind::Victim);
-
-		// What belongs to them comes along: a few passes over alive units, so that the summon
-		// of a summon counts too.
-		vector<CharacterBase *> candidates;
-		CCObject *obj = nullptr;
-		CCARRAY_FOREACH(game.getChildren(), obj)
 		{
-			auto unit = dynamic_cast<CharacterBase *>(obj);
-			if (unit && unit->_stageId == _fromStageId && isFollowerRole(unit) && !members.count(unit))
-				candidates.push_back(unit);
+			const int side = victim->getGroup() == Group::Akatsuki ? 1 : 0;
+			destinations[victim] = slotPosition(*stage, victim->getGroup(), next[side]++);
+			addEntry(victim, Kind::Victim);
 		}
-		for (int pass = 0; pass < 3; ++pass)
+		for (const auto &follower : followersOf(_fromStageId, destinations))
 		{
-			bool grew = false;
-			for (auto unit : candidates)
-			{
-				if (members.count(unit))
-					continue;
-				auto owner = unit->getMaster();
-				if (!owner)
-					continue;
-				auto found = newPosition.find(owner);
-				if (found == newPosition.end())
-					continue;
-
-				Vec2 offset = unit->getPosition() - owner->getPosition();
-				offset.x = (std::max)(-48.0f, (std::min)(48.0f, offset.x));
-				offset.y = (std::max)(-24.0f, (std::min)(24.0f, offset.y));
-				newPosition[unit] = found->second + offset;
-				members.insert(unit);
-				addEntry(unit, Kind::Follower);
-				grew = true;
-			}
-			if (!grew)
-				break;
+			destinations[follower.first] = follower.second;
+			addEntry(follower.first, Kind::Follower);
 		}
-
 		for (const auto &entry : _entries)
-			place(entry.unit, stage->id, newPosition[entry.unit]);
+			place(entry.unit, stage->id, destinations[entry.unit]);
 
 		_phase = Phase::Active;
+
+		// setTrapMap takes the hero that used it along; setBanishMap leaves it where it is.
+		if (!arm.banish)
+			moveCaster(true);
 		game.refreshMinimap();
 		CCLOG("setTrapMap: inside stage %d, %d units moved, %.1fs", stage->id, (int)_entries.size(), _timer);
+	}
+
+	// The hero that made the trap goes in (to its side's first spawn point, remembering where it
+	// was) or out (to where it last went in), together with its own summons.
+	void moveCaster(bool in)
+	{
+		if (!casterInPlay(_caster))
+			return;
+
+		Vec2 destination = _casterSaved;
+		if (in)
+		{
+			_casterSaved = _caster->getPosition();
+			destination = slotPosition(_owner->stageOf(_stageId), _caster->getGroup(), 0);
+		}
+
+		std::unordered_map<CharacterBase *, Vec2> owners;
+		owners[_caster] = destination;
+		const auto followers = followersOf(_caster->_stageId, owners);
+
+		const int to = in ? _stageId : _fromStageId;
+		place(_caster, to, destination);
+		for (const auto &follower : followers)
+			place(follower.first, to, follower.second);
+
+		_casterInside = in;
+		_owner->refreshMinimap();
 	}
 
 	void addEntry(CharacterBase *unit, Kind kind)
@@ -494,16 +617,9 @@ private:
 		_entries.push_back(entry);
 	}
 
-	bool casterGone() const
-	{
-		for (const auto &entry : _entries)
-		{
-			if (entry.kind != Kind::Caster)
-				continue;
-			return !stillValid(entry.unit) || entry.unit->_stageId != _stageId;
-		}
-		return true;
-	}
+	// The hero that made the trap is dead or gone from the scene. (Not "outside the trap
+	// map": it may leave and come back through toggleTrapDimension.)
+	bool casterGone() const { return !stillValid(_caster); }
 
 	// All caught enemies are dead, or back at their base, or otherwise off the trap map.
 	bool noVictimLeft() const
@@ -535,14 +651,17 @@ private:
 				humanWasTrapped = true;
 		}
 
-		// What appeared on the trap map meanwhile (summons, clones, projectiles) follows its
-		// owner back, or lands where the hero that used the trap was caught.
-		Vec2 fallback(0, 0);
-		for (const auto &entry : _entries)
+		// The hero that made the trap, if it is inside, goes back to where it last went in.
+		if (_caster && _casterInside && _caster->getParent())
 		{
-			if (entry.kind == Kind::Caster)
-				fallback = entry.position;
+			place(_caster, _fromStageId, _casterSaved);
+			restored[_caster] = _casterSaved;
+			if (_caster == game.currentPlayer)
+				humanWasTrapped = true;
 		}
+
+		// What is still on the trap map (summons, clones, projectiles) follows its owner back,
+		// or lands where the hero that made the trap went in.
 		CCObject *obj = nullptr;
 		CCARRAY_FOREACH(game.getChildren(), obj)
 		{
@@ -550,7 +669,7 @@ private:
 			if (!unit || unit->_stageId != _stageId)
 				continue;
 
-			Vec2 where = fallback;
+			Vec2 where = _casterSaved;
 			auto owner = unit->getMaster();
 			auto found = owner ? restored.find(owner) : restored.end();
 			if (found != restored.end())
@@ -561,13 +680,20 @@ private:
 		CCLOG("setTrapMap: back on the battle's map");
 		game.removeStage(_stageId);
 		releaseEntries();
+		releaseCaster();
 		_phase = Phase::Idle;
 		_swapWaiting = false;
 		_swapAction = nullptr;
 		game.refreshMinimap();
 
-		if (forced && _style == 1 && humanWasTrapped)
-			game.showVeilFade(0.0f, 0.1f, kFadeOutSeconds); // the cut was instant: reveal it
+		if (forced && humanWasTrapped)
+		{
+			// The cut was instant: reveal it (from the dark, or out of the spiral).
+			if (_style == 1)
+				game.showVeilFade(0.0f, 0.1f, kFadeOutSeconds);
+			else if (_style == 2)
+				game.startSwirl(0.0f, 0.05f, ScreenSwirl::kOutSeconds);
+		}
 	}
 
 	void place(CharacterBase *unit, int stageId, const Vec2 &position)
@@ -590,7 +716,10 @@ private:
 	vector<Recent> _recent;
 
 	Phase _phase = Phase::Idle;
-	vector<Entry> _entries;
+	vector<Entry> _entries; // the caught and what belongs to them
+	CharacterBase *_caster = nullptr; // the hero that made the trap; retained while it lasts
+	bool _casterInside = false;
+	Vec2 _casterSaved; // where the hero that made the trap stood on the battle's map when it last went in
 	int _style = 0;
 	bool _humanInvolved = false;
 	int _fromStageId = kMainStage;

@@ -652,6 +652,7 @@ public:
 	void				applyInvertTag(const string& args, bool round);
 	void				setInvertUntil(int mode, std::shared_ptr<FrameLink> link, bool round);
 
+	// (transitionstyle: 0 at once, 1 fade through black, 2 spiral into the dark.)
 	// XML <e type="setMapChange">mapname, transitionstyle, seconds</e>: swaps the map and the
 	// background (see Systems/MapChangeSystem.hpp); everything else stays where it is. Any
 	// hero can do it, not only the one the human plays.
@@ -660,7 +661,24 @@ public:
 	// XML <e type="setTrapMap">mapname, transitionstyle, seconds, debuff</e>: whoever this hero's
 	// attacks hit in the next moment is taken with it into a trap map for a while (see
 	// Systems/TrapSystem.hpp). The debuff slot is read and ignored for now.
-	void				setTrapMap(const string& args);
+	void				setTrapMap(const string& args) { applyTrapTag(args, false); }
+	void				setBanishMap(const string& args) { applyTrapTag(args, true); }
+	void				applyTrapTag(const string& args, bool banish);
+
+	// XML <e type="setBanishMap">mapname, transitionstyle, seconds, debuff</e>: like setTrapMap,
+	// but this hero stays out of the trap map: only the enemies it hits are sent into it.
+	//
+	// XML <e type="toggleTrapDimension">cooldown, cbuff</e>: for the hero that made a trap map
+	// (setTrapMap or setBanishMap) and only while it lasts: goes in if it is outside, out if it
+	// is inside, and the cooldown (seconds) of the skill that used it becomes "cooldown". With no
+	// trap map of its own going it does not touch the trap and acts like a skill-change buff
+	// (setBuff with the cbuff number), keeping the skill's own cooldown.
+	void				toggleTrapDimension(const string& args);
+
+	// The skill that is running (set when it starts), so a command inside its animation can
+	// change that skill's cooldown. Skills 1-3 only: the ougi slots have no cooldown timer.
+	ABType				_activeSkill = NAttack;
+	void				applyCustomCooldown(float seconds);
 	void				releaseInvertLink(std::shared_ptr<FrameLink> link);
 	void				releaseVeilLink(std::shared_ptr<FrameLink> link);
 	// void				setItemEffect(const string &type);
