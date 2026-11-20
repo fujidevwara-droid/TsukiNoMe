@@ -9,8 +9,8 @@
 
 // The XML commands
 //
-//     <e type="setTrapMap">mapname, transitionstyle, seconds, debuff</e>
-//     <e type="setBanishMap">mapname, transitionstyle, seconds, debuff</e>
+//     <e type="setTrapMap">mapname, transitionstyle, seconds, debuff, dynamic</e>
+//     <e type="setBanishMap">mapname, transitionstyle, seconds, debuff, dynamic</e>
 //     <e type="toggleTrapDimension">cooldown, cbuff</e>
 //
 // mapname  a name or a number, always from Maps/Duels/ (Maps/Duels/<mapname>.tmx, with
@@ -23,6 +23,23 @@
 //          those being moved.
 // seconds  how long the trap lasts (default 10).
 // debuff   read and ignored for now: empty or 0 means none.
+// dynamic  optional. Missing, empty or 0: the map is always Maps/Duels/<mapname>.tmx and the
+//          caught are placed on its spawn points. 1: the map follows the battle's mode, the
+//          way setMapChange does (Maps/<mapname>.tmx in the normal game, Maps/Duels/<mapname>.tmx
+//          in Duels/Arcade; if the normal-size file does not exist the duel one is used), the
+//          trap stage runs by the same rules as that folder (a normal-size trap map scrolls),
+//          and everybody lands at the position on the trap map that matches where they stood
+//          on the battle's map, instead of on spawn points. "Matches" is proportional: the
+//          same fraction across and up the playable area, so equal-size maps give the very
+//          same coordinates and a smaller or bigger trap map squeezes or stretches the
+//          positions. Followers keep their offset from their owner. Only the hero that made
+//          the trap leaves by the matching position (the timer ending, or toggleTrapDimension
+//          taking it out): it comes back to the position on the battle's map that matches where
+//          it stands on the trap map. The caught enemies are not mapped back: they are spat
+//          out around that hero (kSpitDistance, alternating sides, each one further out), with
+//          their followers keeping their offset from them. If the hero is gone or dead by then,
+//          or an enemy is no longer on the trap map, it goes to where it was caught. With 0,
+//          everybody returns to exactly where they were caught.
 //
 // setTrapMap: the heroes the attack hits are taken into the trap map together with the hero
 // that used it, and their summons, clones, puppets and mons. setBanishMap is the same
@@ -32,7 +49,7 @@
 //
 // toggleTrapDimension: the hero that made a trap map (either kind) goes into it if it is
 // outside and comes out of it if it is inside, with its own summons; it goes back to where it
-// last went in. Only the hero that made the trap can do this, and only while it lasts.
+// last went in (dynamic: to the position that matches where it is inside the trap map). Only the hero that made the trap can do this, and only while it lasts.
 // "cooldown" (seconds) then becomes the cooldown of the skill that used it, instead of the
 // skill's own. Without a trap map of its own going, the command does not touch anything of
 // the trap and acts like a skill-change buff (setBuff with the "cbuff" number) and the skill
@@ -61,6 +78,8 @@ public:
 	static constexpr float kArmSeconds = 0.6f;		// how long an armed hero catches what it hits
 	static constexpr float kGraceSeconds = 0.25f;	// what is left of that after the first catch
 	static constexpr float kLookbackSeconds = 0.5f; // hits this recent still count when the command arrives
+	static constexpr float kSpitDistance = 96.0f;	// dynamic: the first caught enemy lands this far from the caster...
+	static constexpr float kSpitStep = 64.0f;		// ...and each further pair this much further out, alternating sides
 	static constexpr float kDefaultSeconds = 10.0f;
 
 	// style 1: how long the screen takes to go black, stays black and comes back.
@@ -79,7 +98,7 @@ public:
 	bool isActive() const { return _phase != Phase::Idle; }
 
 	// The XML command, from the hero that used it. banish: the hero stays out of it.
-	void arm(CharacterBase *caster, const string &mapName, int style, float seconds, int /*debuff*/, bool banish = false)
+	void arm(CharacterBase *caster, const string &mapName, int style, float seconds, int /*debuff*/, bool banish = false, bool dynamic = false)
 	{
 		if (!caster || mapName.empty() || !caster->isPlayerOrCom())
 		{
@@ -102,6 +121,7 @@ public:
 		armed.name = mapName;
 		armed.style = style;
 		armed.banish = banish;
+		armed.dynamic = dynamic;
 		armed.seconds = seconds > 0.0f ? seconds : kDefaultSeconds;
 		armed.windowLeft = kArmSeconds;
 
@@ -231,7 +251,9 @@ public:
 
 	// From DuelSystem::resolveDeaths: `dead` has died. If it was in the trap business, the trap
 	// ends now (nothing may be left waiting while a replacement steps in) and the position where
-	// its replacement should appear is where it was caught, on the battle's map.
+	// its replacement should appear is where it was caught, on the battle's map (dynamic: around
+	// the hero that made the trap, where the caught are spat out; for the hero itself, the
+	// position matching where it fell on the trap map).
 	Vec2 onHeroDeath(CharacterBase *dead, const Vec2 &position)
 	{
 		if (!isActive())
@@ -243,16 +265,24 @@ public:
 		{
 			member = true;
 			if (_casterInside)
-				back = _casterSaved; // outside, it fell on the battle's map already
+				back = exitPosition(dead, position, _casterSaved); // outside, it fell on the battle's map already
 		}
 		else
 		{
+			int spat = 0; // victims before it that eject() will spit out first
 			for (const auto &entry : _entries)
 			{
 				if (entry.unit == dead && entry.kind == Kind::Victim)
 				{
 					member = true;
 					back = entry.position;
+					Vec2 anchor;
+					if (_dynamic && dead->_stageId == _stageId && casterAnchor(anchor))
+						back = spitPosition(anchor, spat);
+				}
+				else if (entry.kind == Kind::Victim && entry.unit->getParent() && entry.unit->_stageId == _stageId)
+				{
+					++spat;
 				}
 			}
 		}
@@ -286,6 +316,7 @@ private:
 		string name;
 		int style = 0;
 		bool banish = false;
+		bool dynamic = false; // 5th field of the XML command: see the top of this file
 		float seconds = kDefaultSeconds;
 		float windowLeft = 0.0f;
 		// [0] is the hero that used the command, the rest are who it has caught. A Vector
@@ -367,6 +398,72 @@ private:
 		return Vec2(stage.originX + size.width * (group == Group::Akatsuki ? 0.65f : 0.35f), size.height / 2);
 	}
 
+	// The playable x range of a stage in GameLayer coordinates: between the walls in an arena,
+	// the whole map otherwise.
+	std::pair<float, float> playableX(const Stage &stage) const
+	{
+		if (stage.arena)
+		{
+			const auto bounds = _owner->arenaBounds(stage);
+			return { bounds.minX, bounds.maxX };
+		}
+		return { stage.originX, stage.originX + stage.pixels().width };
+	}
+
+	// Dynamic mode: where `position` (on stage `from`) is on stage `to`, proportionally. The
+	// same fraction across the playable width and up the map height; equal maps give the same
+	// local coordinates, and the result is always inside the trap map's playable area.
+	Vec2 equivalentPosition(const Stage &from, const Stage &to, const Vec2 &position) const
+	{
+		const auto fromX = playableX(from);
+		const auto toX = playableX(to);
+
+		float fx = fromX.second > fromX.first ? (position.x - fromX.first) / (fromX.second - fromX.first) : 0.5f;
+		float fy = from.pixels().height > 0.0f ? position.y / from.pixels().height : 0.5f;
+		fx = (std::min)((std::max)(fx, 0.0f), 1.0f);
+		fy = (std::min)((std::max)(fy, 0.0f), 1.0f);
+
+		return Vec2(toX.first + fx * (toX.second - toX.first), fy * to.pixels().height);
+	}
+
+	// Where a unit goes when it leaves the trap map: dynamic, and it is on the trap map: the
+	// matching position on the battle's map, from where it stands now (`current`). Otherwise
+	// (not dynamic, or it is not on the trap map any more) the position saved when it went in.
+	Vec2 exitPosition(const CharacterBase *unit, const Vec2 &current, const Vec2 &saved) const
+	{
+		if (!_dynamic || unit->_stageId != _stageId)
+			return saved;
+		return equivalentPosition(_owner->stageOf(_stageId), _owner->stageOf(_fromStageId), current);
+	}
+
+	// Dynamic: where the hero that made the trap will be on the battle's map once the trap is
+	// over (where it would come out if it is inside, where it stands if it is already outside).
+	// False if it is gone, dead, or not on the battle's map.
+	bool casterAnchor(Vec2 &anchor) const
+	{
+		if (!stillValid(_caster))
+			return false;
+		if (_casterInside)
+		{
+			anchor = equivalentPosition(_owner->stageOf(_stageId), _owner->stageOf(_fromStageId), _caster->getPosition());
+			return true;
+		}
+		if (_caster->_stageId != _fromStageId)
+			return false;
+		anchor = _caster->getPosition();
+		return true;
+	}
+
+	// Dynamic: where the index-th caught enemy lands around `anchor`: alternating sides, each
+	// pair a step further out, kept inside the battle map's playable width.
+	Vec2 spitPosition(const Vec2 &anchor, int index) const
+	{
+		const float side = (index % 2 == 0) ? 1.0f : -1.0f;
+		const float x = anchor.x + side * (kSpitDistance + (index / 2) * kSpitStep);
+		const auto range = playableX(_owner->stageOf(_fromStageId));
+		return Vec2((std::min)((std::max)(x, range.first), range.second), anchor.y);
+	}
+
 	bool humanIsAmong(const vector<CharacterBase *> &units) const
 	{
 		return _owner->currentPlayer &&
@@ -397,6 +494,7 @@ private:
 			_caster->release();
 		_caster = nullptr;
 		_casterInside = false;
+		_dynamic = false;
 	}
 
 	// An armed hero's window has closed: start the trap if anything was caught.
@@ -413,7 +511,24 @@ private:
 			return;
 		}
 
-		const string file = format("Maps/Duels/{}.tmx", arm.name);
+		// Which map file, and whether the trap stage runs by the arena rules (which follow the
+		// folder, as in setMapChange). Not dynamic: always the duel map. Dynamic: the folder
+		// that suits the battle, falling back to the duel map if there is no normal-size one.
+		bool arena = true;
+		string file = format("Maps/Duels/{}.tmx", arm.name);
+		if (arm.dynamic && !_owner->stageOf(arm.caster()->_stageId).arena)
+		{
+			const string normal = format("Maps/{}.tmx", arm.name);
+			if (FileUtils::sharedFileUtils()->isFileExist(normal))
+			{
+				file = normal;
+				arena = false;
+			}
+			else
+			{
+				CCLOG("setTrapMap: no normal-size map %s, using the duel map", normal.c_str());
+			}
+		}
 		if (!FileUtils::sharedFileUtils()->isFileExist(file))
 		{
 			CCLOG("setTrapMap: map %s not found", file.c_str());
@@ -430,8 +545,8 @@ private:
 		_phase = Phase::Entering;
 		_style = arm.style;
 		_humanInvolved = humanIsAmong(involved);
-		run(arm.style, [this, arm, file]()
-			{ enter(arm, file); });
+		run(arm.style, [this, arm, file, arena]()
+			{ enter(arm, file, arena); });
 	}
 
 	// Runs `action` at once, or behind a transition (style 1 fade, style 2 spiral) if the
@@ -513,7 +628,7 @@ private:
 		return found;
 	}
 
-	void enter(const Arm &arm, const string &file)
+	void enter(const Arm &arm, const string &file, bool arena)
 	{
 		GameLayer &game = *_owner;
 
@@ -539,7 +654,7 @@ private:
 			return;
 		}
 
-		Stage *stage = game.addStage(arm.name, file, true);
+		Stage *stage = game.addStage(arm.name, file, arena);
 		if (!stage)
 		{
 			CCLOG("setTrapMap: map %s could not be loaded", file.c_str());
@@ -553,14 +668,18 @@ private:
 		_timer = arm.seconds;
 		_casterInside = false;
 		_casterSaved = caster->getPosition();
+		_dynamic = arm.dynamic;
 
-		// The caught, each on its own side's spawn points, and what belongs to them.
+		// The caught, each on its own side's spawn points (dynamic: at the matching position
+		// on the trap map), and what belongs to them.
 		std::unordered_map<CharacterBase *, Vec2> destinations;
 		int next[2] = { 0, 0 };
 		for (auto victim : victims)
 		{
 			const int side = victim->getGroup() == Group::Akatsuki ? 1 : 0;
-			destinations[victim] = slotPosition(*stage, victim->getGroup(), next[side]++);
+			destinations[victim] = _dynamic
+									   ? equivalentPosition(game.stageOf(_fromStageId), *stage, victim->getPosition())
+									   : slotPosition(*stage, victim->getGroup(), next[side]++);
 			addEntry(victim, Kind::Victim);
 		}
 		for (const auto &follower : followersOf(_fromStageId, destinations))
@@ -580,18 +699,21 @@ private:
 		CCLOG("setTrapMap: inside stage %d, %d units moved, %.1fs", stage->id, (int)_entries.size(), _timer);
 	}
 
-	// The hero that made the trap goes in (to its side's first spawn point, remembering where it
+	// The hero that made the trap goes in (to its side's first spawn point, or the matching position
+	// when dynamic, remembering where it
 	// was) or out (to where it last went in), together with its own summons.
 	void moveCaster(bool in)
 	{
 		if (!casterInPlay(_caster))
 			return;
 
-		Vec2 destination = _casterSaved;
+		Vec2 destination = exitPosition(_caster, _caster->getPosition(), _casterSaved);
 		if (in)
 		{
 			_casterSaved = _caster->getPosition();
-			destination = slotPosition(_owner->stageOf(_stageId), _caster->getGroup(), 0);
+			destination = _dynamic
+							  ? equivalentPosition(_owner->stageOf(_fromStageId), _owner->stageOf(_stageId), _casterSaved)
+							  : slotPosition(_owner->stageOf(_stageId), _caster->getGroup(), 0);
 		}
 
 		std::unordered_map<CharacterBase *, Vec2> owners;
@@ -641,27 +763,60 @@ private:
 
 		bool humanWasTrapped = false;
 		std::unordered_map<CharacterBase *, Vec2> restored;
+		std::unordered_map<CharacterBase *, Vec2> before; // where they stood on the trap map
+
+		// Dynamic: where the hero that made the trap ends up; the caught are spat out around it.
+		Vec2 anchor;
+		const bool haveAnchor = _dynamic && casterAnchor(anchor);
+
 		for (const auto &entry : _entries)
 		{
-			if (!entry.unit->getParent())
-				continue; // gone from the scene meanwhile
-			place(entry.unit, _fromStageId, entry.position);
-			restored[entry.unit] = entry.position;
-			if (entry.unit == game.currentPlayer)
-				humanWasTrapped = true;
+			if (entry.unit->getParent())
+				before[entry.unit] = entry.unit->getPosition();
 		}
 
-		// The hero that made the trap, if it is inside, goes back to where it last went in.
+		// The hero that made the trap, if it is inside, goes back first (to where it last went in;
+		// dynamic: to the position matching where it is now), so the caught can land around it.
 		if (_caster && _casterInside && _caster->getParent())
 		{
-			place(_caster, _fromStageId, _casterSaved);
-			restored[_caster] = _casterSaved;
+			const Vec2 back = exitPosition(_caster, _caster->getPosition(), _casterSaved);
+			place(_caster, _fromStageId, back);
+			restored[_caster] = back;
 			if (_caster == game.currentPlayer)
 				humanWasTrapped = true;
 		}
 
+		int spat = 0;
+		for (const auto &entry : _entries)
+		{
+			if (!entry.unit->getParent())
+				continue; // gone from the scene meanwhile
+
+			Vec2 back = entry.position;
+			if (haveAnchor && entry.unit->_stageId == _stageId)
+			{
+				if (entry.kind == Kind::Victim)
+				{
+					back = spitPosition(anchor, spat++);
+				}
+				else
+				{
+					// A follower keeps its offset from its owner.
+					auto owner = entry.unit->getMaster();
+					auto landed = owner ? restored.find(owner) : restored.end();
+					auto was = owner ? before.find(owner) : before.end();
+					if (landed != restored.end() && was != before.end())
+						back = landed->second + (before[entry.unit] - was->second);
+				}
+			}
+			place(entry.unit, _fromStageId, back);
+			restored[entry.unit] = back;
+			if (entry.unit == game.currentPlayer)
+				humanWasTrapped = true;
+		}
+
 		// What is still on the trap map (summons, clones, projectiles) follows its owner back,
-		// or lands where the hero that made the trap went in.
+		// or lands where the hero that made the trap ends up (not dynamic: where it went in).
 		CCObject *obj = nullptr;
 		CCARRAY_FOREACH(game.getChildren(), obj)
 		{
@@ -669,7 +824,7 @@ private:
 			if (!unit || unit->_stageId != _stageId)
 				continue;
 
-			Vec2 where = _casterSaved;
+			Vec2 where = haveAnchor ? anchor : _casterSaved;
 			auto owner = unit->getMaster();
 			auto found = owner ? restored.find(owner) : restored.end();
 			if (found != restored.end())
@@ -721,6 +876,7 @@ private:
 	bool _casterInside = false;
 	Vec2 _casterSaved; // where the hero that made the trap stood on the battle's map when it last went in
 	int _style = 0;
+	bool _dynamic = false; // this trap was armed with the dynamic field
 	bool _humanInvolved = false;
 	int _fromStageId = kMainStage;
 	int _stageId = kMainStage;

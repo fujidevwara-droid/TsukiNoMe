@@ -2017,10 +2017,13 @@ void CharacterBase::applyTrapTag(const string& args, bool banish)
 	const int style = (parts.size() > 1 && !parts[1].empty()) ? atoi(parts[1].c_str()) : 0;
 	const float seconds = (parts.size() > 2 && !parts[2].empty()) ? (float)atof(parts[2].c_str()) : 0.0f;
 	const int debuff = (parts.size() > 3 && !parts[3].empty()) ? atoi(parts[3].c_str()) : 0; // not used yet
+	// 5th field, optional: 1 = dynamic (the map follows the battle's mode, and everyone lands at the
+	// equivalent position instead of on spawn points). Missing, empty or 0 = the old behaviour.
+	const bool dynamic = parts.size() > 4 && !parts[4].empty() && atoi(parts[4].c_str()) != 0;
 
 	// A summon or clone using it traps on its owner's behalf.
 	CharacterBase* caster = getMaster() ? getMaster() : this;
-	getGameLayer()->armTrap(caster, parts[0], style, seconds, debuff, banish);
+	getGameLayer()->armTrap(caster, parts[0], style, seconds, debuff, banish, dynamic);
 }
 
 // "<cooldown>[, <cbuff>]": see the declaration.

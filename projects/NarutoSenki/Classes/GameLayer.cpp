@@ -414,10 +414,10 @@ void GameLayer::requestMapChange(int stageId, const string &mapName, int style, 
 		_mapChange->request(stageId, mapName, style, seconds);
 }
 
-void GameLayer::armTrap(CharacterBase *caster, const string &mapName, int style, float seconds, int debuff, bool banish)
+void GameLayer::armTrap(CharacterBase *caster, const string &mapName, int style, float seconds, int debuff, bool banish, bool dynamic)
 {
 	if (_trap)
-		_trap->arm(caster, mapName, style, seconds, debuff, banish);
+		_trap->arm(caster, mapName, style, seconds, debuff, banish, dynamic);
 }
 
 TrapToggle GameLayer::toggleTrapDimension(CharacterBase *who)

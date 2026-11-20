@@ -231,7 +231,7 @@ public:
 
 	// XML <e type="setTrapMap">: see Systems/TrapSystem.hpp.
 	std::unique_ptr<TrapSystem> _trap;
-	void armTrap(CharacterBase *caster, const string &mapName, int style, float seconds, int debuff, bool banish = false);
+	void armTrap(CharacterBase *caster, const string &mapName, int style, float seconds, int debuff, bool banish = false, bool dynamic = false);
 	TrapToggle toggleTrapDimension(CharacterBase *who);					   // see TrapSystem::toggleDimension
 	void trapHit(CharacterBase *caster, CharacterBase *victim);		   // an attack of `caster` landed on `victim`
 	bool isTrapActive() const;										   // Duels/Arcade refuse hero swaps while true
