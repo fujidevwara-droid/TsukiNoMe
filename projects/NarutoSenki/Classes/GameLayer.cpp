@@ -1561,8 +1561,19 @@ void GameLayer::checkBackgroundMusic(float dt)
 {
 	if (UserDefault::sharedUserDefault()->getBoolForKey("isBGM"))
 	{
+		// stopBGAudio: stay silent until playNewBGAudio brings music back.
+		if (_bgmStopped)
+			return;
+
 		if (!SimpleAudioEngine::sharedEngine()->isBackgroundMusicPlaying())
 		{
+			// playNewBGAudio: its file is the battle theme from then on.
+			if (!_bgmOverride.empty())
+			{
+				SimpleAudioEngine::sharedEngine()->playBackgroundMusic(_bgmOverride.c_str(), true);
+				return;
+			}
+
 			// A mode's own battle theme (an Arcade boss) replaces the normal
 			// rotation for as long as its file exists, and loops.
 			if (isDuelMode())
@@ -1600,6 +1611,75 @@ void GameLayer::checkBackgroundMusic(float dt)
 			}
 		}
 	}
+}
+
+void GameLayer::stopBGAudio()
+{
+	_bgmStopped = true;
+	_bgmOverride.clear();
+	SimpleAudioEngine::sharedEngine()->stopBackgroundMusic(true);
+}
+
+void GameLayer::playNewBGAudio(const string& file)
+{
+	if (file.empty())
+		return;
+
+	// A missing file leaves the current music alone.
+	if (!FileUtils::sharedFileUtils()->isFileExist(file.c_str()))
+	{
+		CCLOGERROR("playNewBGAudio: %s not found", file.c_str());
+		return;
+	}
+
+	_bgmStopped = false;
+	_bgmOverride = file;
+	if (UserDefault::sharedUserDefault()->getBoolForKey("isBGM"))
+	{
+		SimpleAudioEngine::sharedEngine()->playBackgroundMusic(file.c_str(), true);
+	}
+}
+
+int GameLayer::freezeOthers(CharacterBase* caster, float failsafeSeconds)
+{
+	if (_freezeId != 0)
+		return 0;
+
+	_frozenNodes.clear();
+	CCArray* childArray = getChildren();
+	Ref* pObject;
+	CCARRAY_FOREACH(childArray, pObject)
+	{
+		auto unit = dynamic_cast<CharacterBase*>((Node*)pObject);
+		// Only units: the veil, the map and the effect batches keep running.
+		// A benched hero is already frozen on purpose and must stay that way.
+		if (!unit || unit == caster || unit->_isBenched)
+			continue;
+		unit->pauseSchedulerAndActions();
+		_frozenNodes.pushBack(unit);
+	}
+
+	_freezeId = ++_freezeCounter;
+	const int id = _freezeId;
+	runAction(newSequence(DelayTime::create(failsafeSeconds), CallFunc::create(std::bind(&GameLayer::releaseFreeze, this, id))));
+	return id;
+}
+
+void GameLayer::releaseFreeze(int id)
+{
+	if (id == 0 || id != _freezeId)
+		return;
+
+	for (auto node : _frozenNodes)
+	{
+		// Skip anyone who was benched in the meantime: the bench keeps them frozen.
+		auto unit = dynamic_cast<CharacterBase*>(node);
+		if (unit && unit->_isBenched)
+			continue;
+		node->resumeSchedulerAndActions();
+	}
+	_frozenNodes.clear();
+	_freezeId = 0;
 }
 
 void GameLayer::setOugis(CharacterBase* sender)

@@ -13,6 +13,8 @@ namespace ArenaBosses
 	{
 		const char *hero;
 		int map;
+		// false: the map also stays in the random arena pick (the boss just fights there).
+		bool reserved = true;
 	};
 
 	inline const std::vector<Entry> &all()
@@ -21,6 +23,7 @@ namespace ArenaBosses
 			{ HeroEnum::Orochimaru, 5 },
 			{ HeroEnum::Itachi, 6 },
 			{ HeroEnum::Pain, 7 },
+			{ HeroEnum::Tobi2, 1, false },
 			// { HeroEnum::Madara, 8 },
 		};
 		return table;
@@ -119,7 +122,10 @@ public:
 	{
 		vector<int> maps;
 		for (const auto &boss : ArenaBosses::all())
-			maps.push_back(boss.map);
+		{
+			if (boss.reserved)
+				maps.push_back(boss.map);
+		}
 		return maps;
 	}
 
@@ -133,6 +139,7 @@ public:
 protected:
 	// How much the levelled-up max HP is multiplied by.
 	virtual uint32_t hpMultiplier(bool playerSide) { return 2; }
+
 	// Runs right after initHeros(): may force or re-roll the enemy duelist.
 	virtual void arrangeEnemy() {}
 	virtual bool enemyGetsBench() { return true; }

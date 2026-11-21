@@ -1063,7 +1063,7 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 	struct FrameBound
 	{
 		std::shared_ptr<FrameLink> link;
-		enum Kind { Zoom, Shake, Veil, Invert } kind;
+		enum Kind { Zoom, Shake, Veil, Invert, Freeze } kind;
 		int framesLeft; // -1: until the animation ends
 		float startedAt;
 	};
@@ -1082,6 +1082,8 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 			call = CallFunc::create(std::bind(&CharacterBase::releaseVeilLink, this, b.link));
 		else if (b.kind == FrameBound::Invert)
 			call = CallFunc::create(std::bind(&CharacterBase::releaseInvertLink, this, b.link));
+		else if (b.kind == FrameBound::Freeze)
+			call = CallFunc::create(std::bind(&CharacterBase::releaseFreezeLink, this, b.link));
 		else
 			call = CallFunc::create(std::bind(&CharacterBase::releaseZoomLink, this, b.link));
 		list.pushBack(call);
@@ -1395,6 +1397,29 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 				{
 					auto call = CallFunc::create(std::bind(&CharacterBase::setCharFlip, this));
 					list.pushBack(call);
+				}
+				else if (key == "setSwitchChar")
+				{
+					auto call = CallFunc::create(std::bind(&CharacterBase::setSwitchChar, this, keyValue));
+					list.pushBack(call);
+				}
+				else if (key == "stopBGAudio")
+				{
+					auto call = CallFunc::create(std::bind(&CharacterBase::stopBGAudio, this));
+					list.pushBack(call);
+				}
+				else if (key == "playNewBGAudio")
+				{
+					auto call = CallFunc::create(std::bind(&CharacterBase::playNewBGAudio, this, keyValue));
+					list.pushBack(call);
+				}
+				else if (key == "pauseEveryMovement")
+				{
+					// Lasts until the animation has played every frame.
+					auto link = std::make_shared<FrameLink>();
+					auto call = CallFunc::create(std::bind(&CharacterBase::setFreezeUntil, this, link));
+					list.pushBack(call);
+					bound.push_back({ link, FrameBound::Freeze, -1, elapsed });
 				}
 
 				spriteFrames.clear();
@@ -1961,6 +1986,62 @@ void CharacterBase::releaseVeilLink(std::shared_ptr<FrameLink> link)
 {
 	if (link->id != 0)
 		getGameLayer()->releaseVeil(link->id);
+}
+
+void CharacterBase::setSwitchChar(const string& name)
+{
+	if (name.empty() || name == getName())
+		return;
+
+	// Reload this hero as the new character, the way setTransform does (same in every mode).
+	CCNotificationCenter::sharedNotificationCenter()->removeObserver(this, "acceptAttack");
+	unschedule(schedule_selector(CharacterBase::dehealBuff));
+	if (_skillUPBuffValue)
+	{
+		unschedule(schedule_selector(CharacterBase::disableBuff));
+		disableBuff(0.1f);
+	}
+	removeBuffEffect("all");
+
+	const auto oldNAttackValue = getNAttackValue();
+	const auto oldMaxHP = getMaxHP();
+	const auto oldHP = getHP();
+
+	setID(name, _role, _group);
+
+	setNAttackValue(oldNAttackValue);
+	setMaxHPValue(oldMaxHP, false);
+	setHPValue(oldHP);
+
+	if (_hpBar)
+		_hpBar->setPositionY(getHeight());
+
+	if (isPlayer())
+		getGameLayer()->setHPLose(getHpPercent());
+}
+
+void CharacterBase::stopBGAudio()
+{
+	getGameLayer()->stopBGAudio();
+}
+
+void CharacterBase::playNewBGAudio(const string& file)
+{
+	string path = file;
+	if (!path.empty() && path.find('/') == string::npos)
+		path = format("Audio/OST/{}.ogg", path);
+	getGameLayer()->playNewBGAudio(path);
+}
+
+void CharacterBase::setFreezeUntil(std::shared_ptr<FrameLink> link)
+{
+	link->id = getGameLayer()->freezeOthers(this, link->failsafe);
+}
+
+void CharacterBase::releaseFreezeLink(std::shared_ptr<FrameLink> link)
+{
+	if (link->id != 0)
+		getGameLayer()->releaseFreeze(link->id);
 }
 
 // "<mode>[, <extra>]": the mode (1 to 4) and an optional last number (seconds for

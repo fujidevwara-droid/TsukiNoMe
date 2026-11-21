@@ -19,6 +19,7 @@ public:
 
 	~Hero()
 	{
+		releaseExtActions();
 		CC_SAFE_RELEASE(idleArray);
 		CC_SAFE_RELEASE(walkArray);
 		CC_SAFE_RELEASE(deadArray);
@@ -86,6 +87,7 @@ public:
 		}
 		CCArray* animationArray = CCArray::create();
 		KTools::readXMLToArray(fpath, animationArray);
+		loadExtActions(format("Unit/Bosses/{}.xml", name));
 
 		// init
 		CCArray* tmpAction = (CCArray*)(animationArray->objectAtIndex(0));

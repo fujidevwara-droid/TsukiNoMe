@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<unit>
+
+	<action name="Phase2">
+		<data>
+			<p type="attackType">TobiB</p>
+			<p type="attackValue">50</p>
+			<p type="attackRangeX">0</p>
+			<p type="attackRangeY">0</p>
+			<p type="cd">0</p>
+		</data>
+		<frame>
+			<f>Tobi2_Walk_01</f>
+		</frame>
+	</action>
+</unit>

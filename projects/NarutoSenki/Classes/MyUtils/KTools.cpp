@@ -8,85 +8,117 @@
 #include "../../../cocos2dx/platform/android/jni/JniHelper.h"
 #endif
 
-bool KTools::readXMLToArray(const string &filePath, CCArray *&array)
+// Parses one <action> element into [dataArray, frameArray].
+static CCArray *parseActionElement(tinyxml2::XMLElement *actionEle)
+{
+	auto actionNodeEle = actionEle->FirstChildElement();
+	auto actionArray = CCArray::create();
+	auto actionData = CCArray::create();
+	auto actionFrame = CCArray::create();
+	while (actionNodeEle)
+	{
+		if (!is_same(actionNodeEle->Name(), "frame"))
+		{
+			auto dataEle = actionNodeEle->FirstChildElement();
+
+			while (dataEle)
+			{
+				const char *nodeKey = dataEle->FirstAttribute()->Value();
+				CCString *nodeValue = CCString::create(dataEle->GetText() ? dataEle->GetText() : "");
+
+				auto dataDic = CCDictionary::create();
+				dataDic->setObject(nodeValue, nodeKey);
+
+				actionData->addObject(dataDic);
+				dataEle = dataEle->NextSiblingElement();
+			}
+		}
+		else
+		{
+			auto frameEle = actionNodeEle->FirstChildElement();
+
+			while (frameEle)
+			{
+				const char *nodeKey;
+				if (is_same(frameEle->Name(), "f"))
+					nodeKey = frameEle->Name();
+				else
+					nodeKey = frameEle->FirstAttribute()->Value();
+
+				CCString *nodeValue = CCString::create(frameEle->GetText() ? frameEle->GetText() : "");
+
+				auto frameDic = CCDictionary::create();
+				frameDic->setObject(nodeValue, nodeKey);
+				actionFrame->addObject(frameDic);
+
+				frameEle = frameEle->NextSiblingElement();
+			}
+		}
+		actionNodeEle = actionNodeEle->NextSiblingElement();
+	}
+	actionArray->addObject(actionData);
+	actionArray->addObject(actionFrame);
+	return actionArray;
+}
+
+// Loads an XML file and hands back its root element through `doc`.
+static tinyxml2::XMLElement *loadXMLRoot(const string &filePath, tinyxml2::XMLDocument &doc, bool silent)
 {
 	unsigned long nSize;
 	auto data = (const char *)FileUtils::sharedFileUtils()->getFileData(filePath.c_str(), "r", &nSize);
 	if (data == nullptr)
 	{
-		CCMessageBox(format("Data {} is null", filePath).c_str(), "Read XML Error");
-		return false;
+		if (!silent)
+			CCMessageBox(format("Data {} is null", filePath).c_str(), "Read XML Error");
+		return nullptr;
 	}
-	tinyxml2::XMLDocument doc;
 	auto err = doc.Parse(data, nSize);
 	delete data;
 	if (err)
 	{
 		CCMessageBox(format("XML Error: {}", tinyxml2::XMLDocument::ErrorIDToName(err)).c_str(), "Parse XML Error");
-		return false;
+		return nullptr;
 	}
+	return doc.RootElement();
+}
 
-	auto rootEle = doc.RootElement();
+bool KTools::readXMLToArray(const string &filePath, CCArray *&array)
+{
+	tinyxml2::XMLDocument doc;
+	auto rootEle = loadXMLRoot(filePath, doc, false);
+	if (!rootEle)
+		return false;
+
 	auto actionEle = rootEle->FirstChildElement();
-
 	while (actionEle)
 	{
-		// const char *actionName = actionEle->FirstAttribute()->Value();
-		// CCLog("[%s]",actionName);
-
-		auto actionNodeEle = actionEle->FirstChildElement();
-		auto actionArray = CCArray::create();
-		auto actionData = CCArray::create();
-		auto actionFrame = CCArray::create();
-		while (actionNodeEle)
-		{
-			// CCLog("+[%s]",actionNodeEle->Name());
-			if (!is_same(actionNodeEle->Name(), "frame"))
-			{
-				auto dataEle = actionNodeEle->FirstChildElement();
-
-				while (dataEle)
-				{
-					const char *nodeKey = dataEle->FirstAttribute()->Value();
-					CCString *nodeValue = CCString::create(dataEle->GetText());
-
-					// CCLog("%s:%s",nodeKey,nodeValue->getCString());
-					auto dataDic = CCDictionary::create();
-					dataDic->setObject(nodeValue, nodeKey);
-
-					actionData->addObject(dataDic);
-					dataEle = dataEle->NextSiblingElement();
-				}
-			}
-			else
-			{
-				auto frameEle = actionNodeEle->FirstChildElement();
-
-				while (frameEle)
-				{
-					const char *nodeKey;
-					if (is_same(frameEle->Name(), "f"))
-						nodeKey = frameEle->Name();
-					else
-						nodeKey = frameEle->FirstAttribute()->Value();
-
-					CCString *nodeValue = CCString::create(frameEle->GetText());
-
-					// CCLog("%s:%s",nodeKey,nodeValue->getCString());
-					auto frameDic = CCDictionary::create();
-					frameDic->setObject(nodeValue, nodeKey);
-					actionFrame->addObject(frameDic);
-
-					frameEle = frameEle->NextSiblingElement();
-				}
-			}
-			actionNodeEle = actionNodeEle->NextSiblingElement();
-		}
-		actionArray->addObject(actionData);
-		actionArray->addObject(actionFrame);
-
-		array->addObject(actionArray);
+		array->addObject(parseActionElement(actionEle));
 		actionEle = actionEle->NextSiblingElement();
+	}
+
+	return true;
+}
+
+bool KTools::readXMLToMap(const string &filePath, CCDictionary *&map)
+{
+	// A missing file is not an error: external animation files are optional.
+	if (!FileUtils::sharedFileUtils()->isFileExist(FileUtils::sharedFileUtils()->fullPathForFilename(filePath.c_str())))
+		return false;
+
+	tinyxml2::XMLDocument doc;
+	auto rootEle = loadXMLRoot(filePath, doc, true);
+	if (!rootEle)
+		return false;
+
+	auto actionEle = rootEle->FirstChildElement("action");
+	while (actionEle)
+	{
+		const char *actionName = actionEle->Attribute("name");
+		if (actionName && *actionName)
+			map->setObject(parseActionElement(actionEle), actionName);
+		else
+			CCLOGERROR("%s: <action> without a name was skipped", filePath.c_str());
+		actionEle = actionEle->NextSiblingElement("action");
 	}
 
 	return true;

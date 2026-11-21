@@ -52,6 +52,24 @@ public:
 		return overrides;
 	}
 
+	// Boss rounds also preload every unit a boss links to through the attackType
+	// of its Unit/Bosses/<boss>.xml (Tobi2 -> TobiB). Only the art and sounds are
+	// loaded, so setSwitchChar can turn the boss into it in place.
+	vector<string> getExtraPreloadChars() override
+	{
+		vector<string> chars = ModeDuels::getExtraPreloadChars();
+		const auto &heroes = getHerosArray();
+		if (!isBossRound() || heroes.size() < 2)
+			return chars;
+
+		for (const auto &name : linkedUnitsOf(heroes[1].name))
+		{
+			if (std::find(chars.begin(), chars.end(), name) == chars.end())
+				chars.push_back(name);
+		}
+		return chars;
+	}
+
 	int currentStage() const { return stage; }
 	bool isBossRound() const { return stage % kBossInterval == 0; }
 
@@ -88,6 +106,33 @@ protected:
 	uint32_t hpMultiplier(bool playerSide) override
 	{
 		return (isBossRound() && !playerSide) ? kBossHpMultiplier : ModeDuels::hpMultiplier(playerSide);
+	}
+
+	// The attackType values found in a boss's Unit/Bosses/<boss>.xml, other than
+	// the boss itself. Empty if the boss has no such file.
+	static vector<string> linkedUnitsOf(const string &boss)
+	{
+		vector<string> linked;
+		auto actions = CCDictionary::create();
+		if (!KTools::readXMLToMap(format("Unit/Bosses/{}.xml", boss), actions))
+			return linked;
+
+		CCDictElement *ele = nullptr;
+		CCDICT_FOREACH(actions, ele)
+		{
+			auto action = (CCArray *)ele->getObject();
+			auto data = (CCArray *)action->objectAtIndex(0);
+			for (unsigned int i = 0; i < data->count(); ++i)
+			{
+				auto value = (CCString *)((CCDictionary *)data->objectAtIndex(i))->objectForKey("attackType");
+				if (!value)
+					continue;
+				string name = value->getCString();
+				if (!name.empty() && name != boss && std::find(linked.begin(), linked.end(), name) == linked.end())
+					linked.push_back(name);
+			}
+		}
+		return linked;
 	}
 
 	// The boss pool, from the ArenaBosses table.

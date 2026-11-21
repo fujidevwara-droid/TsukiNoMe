@@ -10,6 +10,9 @@ class KTools
 {
 public:
 	static bool readXMLToArray(const string &filePath, CCArray *&array);
+	// Reads an XML file into a dictionary keyed by <action name="...">; each value is [dataArray, frameArray].
+	// Returns false (silently) if the file does not exist.
+	static bool readXMLToMap(const string &filePath, CCDictionary *&map);
 	static void prepareFileOGG(const string &listName, bool unload = false);
 
 	static void initTableInDB();

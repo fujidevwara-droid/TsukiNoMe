@@ -330,6 +330,24 @@ public:
 	void setOugis(CharacterBase *sender);
 	void removeOugis();
 
+	// Background music, from the XML tags stopBGAudio and playNewBGAudio through
+	// CharacterBase. stopBGAudio also keeps checkBackgroundMusic() from starting a theme
+	// again; playNewBGAudio replaces whatever is playing (or nothing) with `file`, looped,
+	// and checkBackgroundMusic() keeps it as the battle theme from then on.
+	void stopBGAudio();
+	void playNewBGAudio(const string &file);
+	bool _bgmStopped = false;
+	string _bgmOverride;
+
+	// pauseEveryMovement: freezes every unit (heroes, flogs, towers, mons, projectiles) except
+	// `caster`, which keeps animating. Returns an id for releaseFreeze(), or 0 if a freeze is
+	// already active. `failsafeSeconds` ends it anyway if the caster's animation is cut short.
+	int freezeOthers(CharacterBase *caster, float failsafeSeconds);
+	void releaseFreeze(int id);
+	int _freezeId = 0;
+	int _freezeCounter = 0;
+	Vector<Node *> _frozenNodes;
+
 	CharacterBase *ougisChar;
 	CharacterBase *controlChar;
 	Layer *blend;

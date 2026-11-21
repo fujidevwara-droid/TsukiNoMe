@@ -719,6 +719,21 @@ public:
 	void				applyCustomCooldown(float seconds);
 	void				releaseInvertLink(std::shared_ptr<FrameLink> link);
 	void				releaseVeilLink(std::shared_ptr<FrameLink> link);
+
+	// XML <e type="stopBGAudio">1</e> stops the battle music (and keeps it off);
+	// <e type="playNewBGAudio">Audio/OST/Name.ogg</e> replaces the music with that file, looped,
+	// whether or not the old one was stopped. A name with no '/' means Audio/OST/<name>.ogg.
+	// <e type="pauseEveryMovement">1</e> freezes every other unit until this animation has
+	// played all its frames (see GameLayer::freezeOthers); only this hero keeps animating.
+	void				stopBGAudio();
+	void				playNewBGAudio(const string& file);
+
+	// XML <e type="setSwitchChar">TobiB</e>: this hero turns into another one, the same way
+	// setTransform does: it is reloaded in place as the new character (data, animations, skills'
+	// frames) keeping the HP left, max HP and attack. In every mode, Duels and Arcade included.
+	void				setSwitchChar(const string& name);
+	void				setFreezeUntil(std::shared_ptr<FrameLink> link);
+	void				releaseFreezeLink(std::shared_ptr<FrameLink> link);
 	// void				setItemEffect(const string &type);
 	void				setDamgeEffect(const string& type);
 	void				setMonAttack(int skillNum);
@@ -1054,9 +1069,37 @@ protected:
 		_actionMap.clear();
 	}
 
+	// ---- External (named) animations -----------------------------------
+	// Optional extra actions loaded from Unit/Bosses/<name>.xml, keyed by <action name="...">.
+
+	// Loads `filePath` into the ext-action map. Missing file is ignored. Returns true if loaded.
+	bool loadExtActions(const string& filePath) {
+		CC_SAFE_RELEASE_NULL(_extActions);
+		auto map = CCDictionary::create();
+		if (!KTools::readXMLToMap(filePath, map) || map->count() == 0)
+			return false;
+		_extActions = map;
+		_extActions->retain();
+		return true;
+	}
+
+	// Returns [dataArray, frameArray] for the named action, or nullptr if absent.
+	CCArray* getExtAction(const string& actionName) {
+		return _extActions ? (CCArray*)_extActions->objectForKey(actionName) : nullptr;
+	}
+
+	// Returns just the frame array (what createAnimation takes) for the named action, or nullptr.
+	CCArray* getExtFrames(const string& actionName) {
+		auto action = getExtAction(actionName);
+		return action ? (CCArray*)action->objectAtIndex(1) : nullptr;
+	}
+
+	void releaseExtActions() { CC_SAFE_RELEASE_NULL(_extActions); }
+
 private:
 	ActionFlag	_actionFlag;
 	ActionMap	_actionMap;
+	CCDictionary* _extActions = nullptr;
 
 	bool _affectedByTower;
 };
