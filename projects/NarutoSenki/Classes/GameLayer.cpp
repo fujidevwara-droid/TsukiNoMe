@@ -414,15 +414,27 @@ void GameLayer::requestMapChange(int stageId, const string &mapName, int style, 
 		_mapChange->request(stageId, mapName, style, seconds);
 }
 
-void GameLayer::armTrap(CharacterBase *caster, const string &mapName, int style, float seconds, int debuff, bool banish, bool dynamic)
+void GameLayer::armTrap(CharacterBase *caster, const string &mapName, int style, float seconds, int debuff, bool banish, bool dynamic, int buff, float outsideSeconds)
 {
 	if (_trap)
-		_trap->arm(caster, mapName, style, seconds, debuff, banish, dynamic);
+		_trap->arm(caster, mapName, style, seconds, debuff, banish, dynamic, buff, outsideSeconds);
 }
 
 TrapToggle GameLayer::toggleTrapDimension(CharacterBase *who)
 {
 	return _trap ? _trap->toggleDimension(who) : TrapToggle::None;
+}
+
+void GameLayer::monOnTrappedTrap(CharacterBase *executor, const string &monName)
+{
+	if (_trap)
+		_trap->monOnTrapped(executor, monName);
+}
+
+void GameLayer::allyEnterTrap(CharacterBase *executor, const string &monName)
+{
+	if (_trap)
+		_trap->pullAlly(executor, monName);
 }
 
 void GameLayer::trapHit(CharacterBase *caster, CharacterBase *victim)

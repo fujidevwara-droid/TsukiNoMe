@@ -9,9 +9,11 @@
 
 // The XML commands
 //
-//     <e type="setTrapMap">mapname, transitionstyle, seconds, debuff, dynamic</e>
-//     <e type="setBanishMap">mapname, transitionstyle, seconds, debuff, dynamic</e>
+//     <e type="setTrapMap">mapname, transitionstyle, seconds, outsideSeconds, debuff, dynamic, buffNumber</e>
+//     <e type="setBanishMap">mapname, transitionstyle, seconds, outsideSeconds, debuff, dynamic, buffNumber</e>
 //     <e type="toggleTrapDimension">cooldown, cbuff</e>
+//     <e type="setAllyEnter">monName</e>
+//     <e type="setMonOnTrapped">monName</e>
 //
 // mapname  a name or a number, always from Maps/Duels/ (Maps/Duels/<mapname>.tmx, with
 //          map_bg<mapname>.png next to it), in the normal game as well as in Duels/Arcade.
@@ -22,6 +24,13 @@
 //          of it (Systems/ScreenSwirl.hpp). The transition only plays when the human is among
 //          those being moved.
 // seconds  how long the trap lasts (default 10).
+// outsideSeconds  optional. Missing, empty or 0: no limit of its own. Otherwise, while the hero
+//          that made the trap is OUTSIDE the trap map, the trap map closes (everybody goes back)
+//          once the hero has been outside this long. "seconds" never stops counting down. Going
+//          back in stops the outside countdown (only what is left of "seconds" counts), coming
+//          out starts it again from the full number; if less than that is left of "seconds",
+//          "seconds" simply ends the trap first. With setBanishMap the hero starts outside, so
+//          the countdown starts with the trap; with setTrapMap it starts when the hero comes out.
 // debuff   read and ignored for now: empty or 0 means none.
 // dynamic  optional. Missing, empty or 0: the map is always Maps/Duels/<mapname>.tmx and the
 //          caught are placed on its spawn points. 1: the map follows the battle's mode, the
@@ -40,6 +49,12 @@
 //          their followers keeping their offset from them. If the hero is gone or dead by then,
 //          or an enemy is no longer on the trap map, it goes to where it was caught. With 0,
 //          everybody returns to exactly where they were caught.
+// buffNumber  optional. Missing, empty or 0: nothing. Otherwise a cBuff (the same kind setBuff2
+//          gives) that the hero that made the trap has only while it is INSIDE the trap map:
+//          it gets it when it goes in (setTrapMap: at the start; setBanishMap: when
+//          toggleTrapDimension takes it in), loses it at once when it comes out (toggleTrapDimension,
+//          the trap ending, its death) and gets it again each time it goes back in. The caught
+//          enemies never get it. The trap keeps the number, so toggleTrapDimension needs none.
 //
 // setTrapMap: the heroes the attack hits are taken into the trap map together with the hero
 // that used it, and their summons, clones, puppets and mons. setBanishMap is the same
@@ -53,7 +68,29 @@
 // "cooldown" (seconds) then becomes the cooldown of the skill that used it, instead of the
 // skill's own. Without a trap map of its own going, the command does not touch anything of
 // the trap and acts like a skill-change buff (setBuff with the "cbuff" number) and the skill
-// keeps its normal cooldown. See CharacterBase::toggleTrapDimension.
+// keeps its normal cooldown. See CharacterBase::toggleTrapDimension. When the trap has a
+// buffNumber, going in gives the hero that buff and coming out takes it away (see above).
+//
+// setAllyEnter (only half done, on purpose): while the trap lasts, a random ALLY of the hero
+// that made it, from outside the trap map, is pulled inside together with its summons, clones,
+// puppets and mons. monName is optional (empty = no show): a mon spawned on both sides for
+// the look of it. Outside it appears at the ally's position on the battle's map, inside at the
+// unit that used the command: the hero itself, or the mon it was used from (that mon's
+// position). The ally arrives at that same spot (when the user of the command is outside the
+// trap map, at its side's spawn point, dynamic: the matching position instead). Allies are
+// never "caught" victims: they do not keep the trap going and they are put back where they
+// were pulled from when the trap ends. No ally outside (or none that can be pulled: dead,
+// benched, hidden) = nothing happens. It can be used again for the next ally. Only the hero
+// that made the trap (or its mons) can use it, and only while the trap lasts. TODO(duels): in
+// Duels/Arcade it will do something else; benched heroes are never pulled, so for now there
+// it finds nobody. See TrapSystem::pullAlly.
+//
+// setMonOnTrapped: while the trap lasts, one monName mon is spawned on EVERY enemy still caught
+// inside the trap map, at that enemy's exact position (no offset). The mons belong to the hero
+// that made the trap and act on its side, so what they do (a hit, a trap, an effect) is up to
+// their own XML. Only the hero that made the trap (or its mons) can use it, only while the trap
+// lasts; with no monName, no trap going or no enemy left inside, nothing happens. Each use
+// spawns a new mon on each enemy.
 //
 // Who is caught: the command arms the hero for a short while (kArmSeconds), and counts the
 // hits from just before it too (kLookbackSeconds), so it does not matter much whether the
@@ -98,7 +135,7 @@ public:
 	bool isActive() const { return _phase != Phase::Idle; }
 
 	// The XML command, from the hero that used it. banish: the hero stays out of it.
-	void arm(CharacterBase *caster, const string &mapName, int style, float seconds, int /*debuff*/, bool banish = false, bool dynamic = false)
+	void arm(CharacterBase *caster, const string &mapName, int style, float seconds, int /*debuff*/, bool banish = false, bool dynamic = false, int buff = 0, float outsideSeconds = 0.0f)
 	{
 		if (!caster || mapName.empty() || !caster->isPlayerOrCom())
 		{
@@ -122,6 +159,8 @@ public:
 		armed.style = style;
 		armed.banish = banish;
 		armed.dynamic = dynamic;
+		armed.buff = buff;
+		armed.outsideSeconds = (std::max)(0.0f, outsideSeconds);
 		armed.seconds = seconds > 0.0f ? seconds : kDefaultSeconds;
 		armed.windowLeft = kArmSeconds;
 
@@ -192,6 +231,91 @@ public:
 		return TrapToggle::Toggled;
 	}
 
+	// setMonOnTrapped: one `monName` mon on each enemy caught inside, at its exact position.
+	void monOnTrapped(CharacterBase *executor, const string &monName)
+	{
+		if (!executor || monName.empty())
+			return;
+		if (!isActive() || _phase != Phase::Active || !casterInPlay(_caster))
+		{
+			CCLOG("setMonOnTrapped: ignored, no trap map of this hero is going on");
+			return;
+		}
+		if (!ownedByCaster(executor))
+		{
+			CCLOG("setMonOnTrapped: ignored, only the hero that made the trap (or its mons) can use it");
+			return;
+		}
+
+		int spawnedCount = 0;
+		for (const auto &entry : _entries)
+		{
+			CharacterBase *enemy = entry.unit;
+			if (entry.kind != Kind::Victim || !stillValid(enemy) || enemy->_stageId != _stageId)
+				continue;
+			// Exactly where the enemy stands.
+			_caster->spawnEffectMon(monName, enemy->getPosition(), _stageId, executor->_isFlipped, _caster);
+			++spawnedCount;
+		}
+		CCLOG("setMonOnTrapped: %d mon(s) spawned", spawnedCount);
+	}
+
+	// setAllyEnter: `executor` (the hero that made the trap, or one of its mons) pulls a random
+	// ally from outside the trap map in. See the top of this file.
+	//
+	// TODO(duels): only the normal-game half is coded. In Duels/Arcade this will do something
+	// else; the place for it is here, before the candidates are looked for. Meanwhile the
+	// allies there are benched (never pulled), so it finds nobody.
+	void pullAlly(CharacterBase *executor, const string &monName)
+	{
+		if (!executor)
+			return;
+		if (!isActive() || _phase != Phase::Active || _swapWaiting || !casterInPlay(_caster))
+		{
+			CCLOG("setAllyEnter: ignored, no trap map of this hero is going on (or it is changing)");
+			return;
+		}
+		if (!ownedByCaster(executor))
+		{
+			CCLOG("setAllyEnter: ignored, only the hero that made the trap (or its mons) can use it");
+			return;
+		}
+
+		vector<CharacterBase *> candidates;
+		CCObject *obj = nullptr;
+		CCARRAY_FOREACH(_owner->getChildren(), obj)
+		{
+			auto unit = dynamic_cast<CharacterBase *>(obj);
+			if (unit && canPull(unit))
+				candidates.push_back(unit);
+		}
+		if (candidates.empty())
+		{
+			CCLOG("setAllyEnter: no ally outside the trap map to pull in");
+			return;
+		}
+		CharacterBase *ally = candidates[rand() % candidates.size()];
+
+		// Where the command was used, now: a mon of the hero may be gone by the time the screen
+		// has faded.
+		const bool executorInside = executor->_stageId == _stageId;
+		const Vec2 executorPosition = executor->getPosition();
+		const bool executorFlipped = executor->_isFlipped;
+
+		CCLOG("setAllyEnter: %s is pulled in", ally->getName().c_str());
+		_humanInvolved = ally == _owner->currentPlayer;
+		Vector<CharacterBase *> held; // keeps the ally alive while the screen fades
+		held.pushBack(ally);
+		run(_style, [this, held, monName, executorInside, executorPosition, executorFlipped]()
+			{
+				if (!isActive() || _phase != Phase::Active || !casterInPlay(_caster))
+					return;
+				CharacterBase *chosen = held.at(0);
+				if (canPull(chosen))
+					enterAlly(chosen, monName, executorInside, executorPosition, executorFlipped);
+			});
+	}
+
 	// Every frame (GameLayer::updateViewPoint).
 	void tick(float dt)
 	{
@@ -237,9 +361,18 @@ public:
 			return;
 
 		_timer -= dt;
-		if (_timer <= 0.0f || casterGone() || noVictimLeft())
+
+		// The outside countdown only runs while the hero that made the trap is outside.
+		bool outsideUp = false;
+		if (!_casterInside && _outsideTimer > 0.0f)
 		{
-			CCLOG("setTrapMap: ending (%s)", _timer <= 0.0f ? "time is up" : casterGone() ? "the hero that made it is gone" : "no caught enemy is left");
+			_outsideTimer -= dt;
+			outsideUp = _outsideTimer <= 0.0f;
+		}
+
+		if (_timer <= 0.0f || outsideUp || casterGone() || noVictimLeft())
+		{
+			CCLOG("setTrapMap: ending (%s)", _timer <= 0.0f ? "time is up" : outsideUp ? "the hero stayed outside too long" : casterGone() ? "the hero that made it is gone" : "no caught enemy is left");
 			_phase = Phase::Leaving;
 			_humanInvolved = _casterInside && _caster == _owner->currentPlayer;
 			for (const auto &entry : _entries)
@@ -308,7 +441,8 @@ private:
 	enum class Kind
 	{
 		Victim,
-		Follower
+		Follower,
+		Ally // pulled in by setAllyEnter: goes back where it was pulled from
 	};
 
 	struct Arm
@@ -317,6 +451,8 @@ private:
 		int style = 0;
 		bool banish = false;
 		bool dynamic = false; // 5th field of the XML command: see the top of this file
+		int buff = 0;		  // last field: the cBuff the caster has while it is inside (0 = none)
+		float outsideSeconds = 0.0f; // 4th field: the trap's life while the caster is outside (0 = no limit)
 		float seconds = kDefaultSeconds;
 		float windowLeft = 0.0f;
 		// [0] is the hero that used the command, the rest are who it has caught. A Vector
@@ -359,6 +495,74 @@ private:
 		Kind kind = Kind::Victim;
 		Vec2 position; // where it was on the battle's map
 	};
+
+	// An ally the hero that made the trap can pull in: a hero of its side, outside the trap map,
+	// alive, in play (not benched or hidden).
+	bool canPull(CharacterBase *ally) const
+	{
+		return _caster && ally != _caster && stillValid(ally) &&
+			   ally->isPlayerOrCom() && ally->getGroup() == _caster->getGroup() &&
+			   ally->_isVisable && !ally->_isBenched && !ally->_isArenaHusk &&
+			   ally->_stageId == _fromStageId && !isFollowerRole(ally);
+	}
+
+	// `unit` is the hero that made the trap, or belongs to it (its mons and summons).
+	bool ownedByCaster(CharacterBase *unit) const
+	{
+		for (int depth = 0; unit && depth < 4; ++depth)
+		{
+			if (unit == _caster)
+				return true;
+			unit = unit->getMaster();
+		}
+		return false;
+	}
+
+	// Moves `ally` (and what belongs to it) into the trap map and spawns the show mons.
+	void enterAlly(CharacterBase *ally, const string &monName, bool executorInside, const Vec2 &executorPosition, bool executorFlipped)
+	{
+		GameLayer &game = *_owner;
+		const Stage &stage = game.stageOf(_stageId);
+
+		const Vec2 outsidePosition = ally->getPosition(); // where it stood on the battle's map
+		const bool outsideFlipped = ally->_isFlipped;
+
+		int pulled = 0;
+		for (const auto &entry : _entries)
+			pulled += entry.kind == Kind::Ally ? 1 : 0;
+
+		// It arrives at the unit that used the command; if that one is not inside the trap map,
+		// at its side's spawn point (dynamic: at the matching position).
+		Vec2 arrival;
+		if (executorInside)
+			arrival = executorPosition;
+		else if (_dynamic)
+			arrival = equivalentPosition(game.stageOf(_fromStageId), stage, outsidePosition);
+		else
+			arrival = slotPosition(stage, ally->getGroup(), 1 + pulled);
+
+		std::unordered_map<CharacterBase *, Vec2> destinations;
+		destinations[ally] = arrival;
+		const auto followers = followersOf(_fromStageId, destinations); // before anything moves
+
+		addEntry(ally, Kind::Ally);
+		for (const auto &follower : followers)
+			addEntry(follower.first, Kind::Follower);
+
+		place(ally, _stageId, arrival);
+		for (const auto &follower : followers)
+			place(follower.first, _stageId, follower.second);
+
+		// The show: one mon where it left from, one where it arrives.
+		if (!monName.empty())
+		{
+			_caster->spawnEffectMon(monName, outsidePosition, _fromStageId, outsideFlipped, _caster);
+			_caster->spawnEffectMon(monName, arrival, _stageId, executorFlipped, _caster);
+		}
+
+		game.refreshMinimap();
+		CCLOG("setAllyEnter: %s is inside stage %d with %d followers", ally->getName().c_str(), _stageId, (int)followers.size());
+	}
 
 	bool canCatch(CharacterBase *caster, CharacterBase *victim) const
 	{
@@ -495,6 +699,10 @@ private:
 		_caster = nullptr;
 		_casterInside = false;
 		_dynamic = false;
+		_buff = 0;
+		_buffOn = false;
+		_outsideLimit = 0.0f;
+		_outsideTimer = 0.0f;
 	}
 
 	// An armed hero's window has closed: start the trap if anything was caught.
@@ -576,6 +784,7 @@ private:
 
 	void cancelPending()
 	{
+		endCasterBuff();
 		_swapWaiting = false;
 		_swapAction = nullptr;
 		_phase = Phase::Idle;
@@ -669,6 +878,10 @@ private:
 		_casterInside = false;
 		_casterSaved = caster->getPosition();
 		_dynamic = arm.dynamic;
+		_buff = arm.buff;
+		_buffOn = false;
+		_outsideLimit = arm.outsideSeconds;
+		_outsideTimer = 0.0f;
 
 		// The caught, each on its own side's spawn points (dynamic: at the matching position
 		// on the trap map), and what belongs to them.
@@ -695,6 +908,8 @@ private:
 		// setTrapMap takes the hero that used it along; setBanishMap leaves it where it is.
 		if (!arm.banish)
 			moveCaster(true);
+		else
+			startOutsideCountdown(); // the hero starts outside
 		game.refreshMinimap();
 		CCLOG("setTrapMap: inside stage %d, %d units moved, %.1fs", stage->id, (int)_entries.size(), _timer);
 	}
@@ -726,7 +941,46 @@ private:
 			place(follower.first, to, follower.second);
 
 		_casterInside = in;
+
+		// The dimension's buff: on while inside, off the moment it is outside. Lasts as long as the
+		// trap has left; endCasterBuff() takes it away earlier whenever the hero comes out.
+		if (in)
+		{
+			giveCasterBuff();
+			_outsideTimer = 0.0f; // inside: only what is left of the main lifespan counts
+		}
+		else
+		{
+			endCasterBuff();
+			startOutsideCountdown();
+		}
 		_owner->refreshMinimap();
+	}
+
+	// The hero that made the trap is outside: the trap map has `_outsideLimit` seconds left to
+	// live (0 = no limit of its own). The main lifespan keeps counting down on its own, so when
+	// less than that is left of it, it ends the trap first.
+	void startOutsideCountdown()
+	{
+		_outsideTimer = _outsideLimit > 0.0f ? _outsideLimit : 0.0f;
+	}
+
+	void giveCasterBuff()
+	{
+		if (_buff <= 0 || !_caster)
+			return;
+		endCasterBuff(); // never stack it: it starts afresh each time the hero goes in
+		_caster->startCBuff(_buff, (std::max)(_timer, 0.0f));
+		_buffOn = true;
+	}
+
+	void endCasterBuff()
+	{
+		if (!_buffOn)
+			return;
+		_buffOn = false;
+		if (_caster)
+			_caster->endCBuff();
 	}
 
 	void addEntry(CharacterBase *unit, Kind kind)
@@ -775,6 +1029,8 @@ private:
 				before[entry.unit] = entry.unit->getPosition();
 		}
 
+		endCasterBuff(); // whatever way the trap ends, the dimension's buff goes with it
+
 		// The hero that made the trap, if it is inside, goes back first (to where it last went in;
 		// dynamic: to the position matching where it is now), so the caught can land around it.
 		if (_caster && _casterInside && _caster->getParent())
@@ -799,7 +1055,7 @@ private:
 				{
 					back = spitPosition(anchor, spat++);
 				}
-				else
+				else if (entry.kind == Kind::Follower)
 				{
 					// A follower keeps its offset from its owner.
 					auto owner = entry.unit->getMaster();
@@ -877,10 +1133,14 @@ private:
 	Vec2 _casterSaved; // where the hero that made the trap stood on the battle's map when it last went in
 	int _style = 0;
 	bool _dynamic = false; // this trap was armed with the dynamic field
+	int _buff = 0;		   // this trap's buffNumber: the cBuff its caster has while inside (0 = none)
+	bool _buffOn = false;  // the caster has that buff right now
 	bool _humanInvolved = false;
 	int _fromStageId = kMainStage;
 	int _stageId = kMainStage;
 	float _timer = 0.0f;
+	float _outsideLimit = 0.0f; // this trap's outsideSeconds (0 = no limit of its own)
+	float _outsideTimer = 0.0f; // what is left of it while the caster is outside (0 = not running)
 
 	bool _swapWaiting = false;
 	float _swapTimer = 0.0f;

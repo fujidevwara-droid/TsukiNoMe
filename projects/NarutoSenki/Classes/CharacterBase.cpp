@@ -1195,6 +1195,16 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 					auto call = CallFunc::create(std::bind(&CharacterBase::toggleTrapDimension, this, keyValue));
 					list.pushBack(call);
 				}
+				else if (key == "setAllyEnter")
+				{
+					auto call = CallFunc::create(std::bind(&CharacterBase::setAllyEnter, this, keyValue));
+					list.pushBack(call);
+				}
+				else if (key == "setMonOnTrapped")
+				{
+					auto call = CallFunc::create(std::bind(&CharacterBase::setMonOnTrapped, this, keyValue));
+					list.pushBack(call);
+				}
 				else if (key == "setMapChange" || key == "setChangeMap")
 				{
 					auto call = CallFunc::create(std::bind(&CharacterBase::setMapChange, this, keyValue));
@@ -1314,6 +1324,11 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 				{
 					int buffValue = dic->valueForKey(key)->intValue();
 					auto call = CallFunc::create(std::bind(&CharacterBase::setBuff, this, buffValue));
+					list.pushBack(call);
+				}
+				else if (key == "setBuff2")
+				{
+					auto call = CallFunc::create(std::bind(&CharacterBase::setBuff2, this, keyValue));
 					list.pushBack(call);
 				}
 				else if (key == "setCommand")
@@ -2006,8 +2021,8 @@ static vector<string> splitFields(const string& args)
 	return parts;
 }
 
-// "<mapname>[, <style>[, <seconds>[, <debuff>]]]": a field may be left empty
-// ("KamuiDimension,,,0"). The seconds default to 10 when empty.
+// "<mapname>[, <style>[, <seconds>[, <outsideSeconds>[, <debuff>[, <dynamic>[, <buffNumber>]]]]]]":
+// a field may be left empty ("KamuiDimension,,,,0"). The seconds default to 10 when empty.
 void CharacterBase::applyTrapTag(const string& args, bool banish)
 {
 	const vector<string> parts = splitFields(args);
@@ -2016,14 +2031,56 @@ void CharacterBase::applyTrapTag(const string& args, bool banish)
 
 	const int style = (parts.size() > 1 && !parts[1].empty()) ? atoi(parts[1].c_str()) : 0;
 	const float seconds = (parts.size() > 2 && !parts[2].empty()) ? (float)atof(parts[2].c_str()) : 0.0f;
-	const int debuff = (parts.size() > 3 && !parts[3].empty()) ? atoi(parts[3].c_str()) : 0; // not used yet
-	// 5th field, optional: 1 = dynamic (the map follows the battle's mode, and everyone lands at the
+	// 4th field, optional: how long the trap map survives while the caster is OUTSIDE it (0 = no
+	// limit of its own: only the lifespan above ends it).
+	const float outsideSeconds = (parts.size() > 3 && !parts[3].empty()) ? (std::max)(0.0f, (float)atof(parts[3].c_str())) : 0.0f;
+	const int debuff = (parts.size() > 4 && !parts[4].empty()) ? atoi(parts[4].c_str()) : 0; // not used yet
+	// 6th field, optional: 1 = dynamic (the map follows the battle's mode, and everyone lands at the
 	// equivalent position instead of on spawn points). Missing, empty or 0 = the old behaviour.
-	const bool dynamic = parts.size() > 4 && !parts[4].empty() && atoi(parts[4].c_str()) != 0;
+	const bool dynamic = parts.size() > 5 && !parts[5].empty() && atoi(parts[5].c_str()) != 0;
+	// 7th field, optional: the cBuff the caster has while it is inside the trap map (0 = none).
+	const int buff = (parts.size() > 6 && !parts[6].empty()) ? (std::max)(0, atoi(parts[6].c_str())) : 0;
 
 	// A summon or clone using it traps on its owner's behalf.
 	CharacterBase* caster = getMaster() ? getMaster() : this;
-	getGameLayer()->armTrap(caster, parts[0], style, seconds, debuff, banish, dynamic);
+	getGameLayer()->armTrap(caster, parts[0], style, seconds, debuff, banish, dynamic, buff, outsideSeconds);
+}
+
+// "[<monName>]": see the declaration. The unit using it is `this` (the hero, or one of its mons);
+// the trap belongs to the hero.
+void CharacterBase::setAllyEnter(const string& monName)
+{
+	const vector<string> parts = splitFields(monName);
+	const string mon = parts.empty() ? string() : parts[0];
+	getGameLayer()->allyEnterTrap(this, mon);
+}
+
+// "<monName>": see the declaration. The unit using it is `this` (the hero, or one of its mons).
+void CharacterBase::setMonOnTrapped(const string& monName)
+{
+	const vector<string> parts = splitFields(monName);
+	if (parts.empty() || parts[0].empty())
+		return;
+	getGameLayer()->monOnTrappedTrap(this, parts[0]);
+}
+
+// A mon made only to be seen: owned by `owner`, no AI, it plays its attack animation and goes.
+CharacterBase* CharacterBase::spawnEffectMon(const string& monName, const Vec2& position, int stageId, bool flipped, CharacterBase* owner)
+{
+	if (monName.empty())
+		return nullptr;
+
+	auto monster = Monster::create();
+	monster->_stageId = stageId;
+	monster->setID(monName, Role::Mon, owner ? owner->getGroup() : _group);
+	monster->setMaster(owner ? owner : this);
+	monster->idle();
+	monster->setPosition(position);
+	monster->setFlipX(flipped);
+	monster->_isFlipped = flipped;
+	monster->attack(NAttack);
+	getGameLayer()->addChild(monster, -monster->getPositionY());
+	return monster;
 }
 
 // "<cooldown>[, <cbuff>]": see the declaration.
@@ -2727,30 +2784,51 @@ void CharacterBase::setCommand(const string& cmd)
 	CommandSystem::invoke(cmd, this);
 }
 
+// Classic setBuff: buff type and duration come from the running skill's <data>
+// block (attackType / attackRangeY).
 void CharacterBase::setBuff(int buffValue)
 {
-	float buffStayTime = _attackRangeY;
+	applyBuff(_attackType, buffValue, _attackRangeY);
+}
 
-	if (_attackType == "hBuff")
+// XML: <e type="setBuff2">[buffNumber],[timer]</e>
+// A cBuff that needs no attackType/attackRangeY in <data>: the buff number and its
+// duration (seconds) are given right in the command, e.g. "18, 6".
+void CharacterBase::setBuff2(const string& value)
+{
+	auto commaPos = value.find(',');
+	const int buffNumber = atoi(value.substr(0, commaPos).c_str());
+	float seconds = 0.0f;
+	if (commaPos != string::npos)
+		seconds = (float)atof(value.substr(commaPos + 1).c_str());
+	if (seconds < 0.0f)
+		seconds = 0.0f;
+
+	applyBuff("cBuff", buffNumber, seconds);
+}
+
+void CharacterBase::applyBuff(const string& buffType, int buffValue, float buffStayTime)
+{
+	if (buffType == "hBuff")
 	{
 		_healBuffValue = buffValue;
 		schedule(schedule_selector(CharacterBase::healBuff), 1);
 		setBuffEffect("hBuff");
 	}
-	else if (_attackType == "sBuff" ||
-		_attackType == "rsBuff" ||
-		_attackType == "hsBuff" ||
-		_attackType == "dcBuff")
+	else if (buffType == "sBuff" ||
+		buffType == "rsBuff" ||
+		buffType == "hsBuff" ||
+		buffType == "dcBuff")
 	{
 		_skillUPBuffValue = buffValue;
 		scheduleOnce(schedule_selector(CharacterBase::disableBuff), buffStayTime);
-		setBuffEffect(_attackType);
+		setBuffEffect(buffType);
 
 		setSAttackValue1(getSAttackValue1() + _skillUPBuffValue);
 		setSAttackValue2(getSAttackValue2() + _skillUPBuffValue);
 		setSAttackValue3(getSAttackValue3() + _skillUPBuffValue);
 
-		if (_attackType == "hsBuff")
+		if (buffType == "hsBuff")
 		{
 			for (auto hero : getGameLayer()->_CharacterArray)
 			{
@@ -2785,7 +2863,7 @@ void CharacterBase::setBuff(int buffValue)
 			}
 		}
 	}
-	else if (_attackType == "cBuff")
+	else if (buffType == "cBuff")
 	{
 		_skillChangeBuffValue = buffValue;
 
@@ -2851,16 +2929,16 @@ void CharacterBase::setBuff(int buffValue)
 
 		changeAction();
 	}
-	else if (_attackType == "tBuff")
+	else if (buffType == "tBuff")
 	{
 		_skillChangeBuffValue = buffValue;
 		scheduleOnce(schedule_selector(CharacterBase::resumeAction), buffStayTime);
 		scheduleOnce(schedule_selector(CharacterBase::disableBuff), buffStayTime);
-		setBuffEffect(_attackType);
+		setBuffEffect(buffType);
 
 		changeAction();
 	}
-	else if (_attackType == "gBuff")
+	else if (buffType == "gBuff")
 	{
 		_skillChangeBuffValue = buffValue;
 		if (getName() == HeroEnum::Nagato)
@@ -2872,7 +2950,7 @@ void CharacterBase::setBuff(int buffValue)
 		}
 		changeAction2();
 	}
-	else if (_attackType == "stBuff")
+	else if (buffType == "stBuff")
 	{
 		if (isPlayer() || getGroup() == getGameLayer()->currentPlayer->getGroup())
 			setOpacity(150);
@@ -2888,8 +2966,8 @@ void CharacterBase::setBuff(int buffValue)
 		_isVisable = false;
 		scheduleOnce(schedule_selector(CharacterBase::disableBuff), buffStayTime);
 	}
-	else if (_attackType == "GroupHeal" ||
-		_attackType == "GroupBuff")
+	else if (buffType == "GroupHeal" ||
+		buffType == "GroupBuff")
 	{
 		if (_healBuffValue)
 			_healBuffValue += buffValue;
@@ -2900,7 +2978,15 @@ void CharacterBase::setBuff(int buffValue)
 	}
 
 	if (isPlayer() || isActivePlayerBody())
-		getGameLayer()->getHudLayer()->setBuffDisplay(_attackType.c_str(), buffStayTime);
+		getGameLayer()->getHudLayer()->setBuffDisplay(buffType.c_str(), buffStayTime);
+}
+
+// Clears a cBuff on the spot: the timed expiry is cancelled and the buff value reset.
+void CharacterBase::endCBuff()
+{
+	unschedule(schedule_selector(CharacterBase::resumeAction));
+	resumeAction(0);
+	changeAction();
 }
 
 void CharacterBase::setBuffEffect(const string& type)

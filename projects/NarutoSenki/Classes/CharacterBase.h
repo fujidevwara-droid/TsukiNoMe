@@ -658,22 +658,52 @@ public:
 	// hero can do it, not only the one the human plays.
 	void				setMapChange(const string& args);
 
-	// XML <e type="setTrapMap">mapname, transitionstyle, seconds, debuff</e>: whoever this hero's
+	// XML <e type="setTrapMap">mapname, transitionstyle, seconds, outsideSeconds, debuff, dynamic, buffNumber</e>: whoever this hero's
 	// attacks hit in the next moment is taken with it into a trap map for a while (see
 	// Systems/TrapSystem.hpp). The debuff slot is read and ignored for now.
 	void				setTrapMap(const string& args) { applyTrapTag(args, false); }
 	void				setBanishMap(const string& args) { applyTrapTag(args, true); }
 	void				applyTrapTag(const string& args, bool banish);
 
-	// XML <e type="setBanishMap">mapname, transitionstyle, seconds, debuff</e>: like setTrapMap,
-	// but this hero stays out of the trap map: only the enemies it hits are sent into it.
+	// XML <e type="setBanishMap">mapname, transitionstyle, seconds, outsideSeconds, debuff, dynamic, buffNumber</e>:
+	// like setTrapMap, but this hero stays out of the trap map: only the enemies it hits are sent
+	// into it.
+	//
+	// outsideSeconds (4th field, optional, empty or 0 = no limit): while the hero that made the
+	// trap is OUTSIDE the trap map, the trap map lasts at most this long; it closes (everybody
+	// goes back) when that runs out. Going back in stops that countdown (the main lifespan, which
+	// never stops counting down, is all that is left); coming out starts it again from the full
+	// number. Used with setBanishMap the hero starts outside, so it counts from the start.
+	//
+	// buffNumber (7th field, optional, empty or 0 = none): a cBuff the hero that made the trap
+	// has only while it is INSIDE the trap map. It gets it when it goes in (setTrapMap: at the
+	// start; setBanishMap: when toggleTrapDimension takes it in), loses it the moment it comes
+	// out (toggleTrapDimension or the trap ending) and gets it back each time it goes in again.
+	// The trap remembers the number, so toggleTrapDimension needs no buff number for this.
 	//
 	// XML <e type="toggleTrapDimension">cooldown, cbuff</e>: for the hero that made a trap map
 	// (setTrapMap or setBanishMap) and only while it lasts: goes in if it is outside, out if it
-	// is inside, and the cooldown (seconds) of the skill that used it becomes "cooldown". With no
+	// is inside, and the cooldown (seconds) of the skill that used it becomes "cooldown". The
+	// trap's own buffNumber (see setBanishMap) is removed / re-added by that move. With no
 	// trap map of its own going it does not touch the trap and acts like a skill-change buff
 	// (setBuff with the cbuff number), keeping the skill's own cooldown.
 	void				toggleTrapDimension(const string& args);
+
+	// XML <e type="setAllyEnter">monName</e> (monName optional): while this hero's trap map is
+	// going on, a random ally from OUTSIDE the trap map is pulled inside (with its summons).
+	// monName is a mon spawned for show on both sides: where the ally stood on the battle's map
+	// (outside) and where it arrives (inside: at the unit that used the command, the hero or
+	// its mon). Half done on purpose: it will do something else in Duels/Arcade later (see
+	// TrapSystem::pullAlly). Can be used by the hero that made the trap or by its mons.
+	void				setAllyEnter(const string& monName);
+	// XML <e type="setMonOnTrapped">monName</e>: while this hero's trap map is going on, one
+	// monName mon is spawned on EVERY enemy caught inside it, at that enemy's exact position
+	// (the mon belongs to the hero that made the trap and acts on its side: its own XML
+	// decides what it does). Nothing happens without a trap map going on or without monName.
+	// Can be used by the hero that made the trap or by its mons.
+	void				setMonOnTrapped(const string& monName);
+	// A mon made only to be seen (no AI, owned by `owner`), at `position` on stage `stageId`.
+	CharacterBase*		spawnEffectMon(const string& monName, const Vec2& position, int stageId, bool flipped, CharacterBase* owner);
 
 	// The skill that is running (set when it starts), so a command inside its animation can
 	// change that skill's cooldown. Skills 1-3 only: the ougi slots have no cooldown timer.
@@ -702,6 +732,14 @@ public:
 	void				removeAllClones();
 
 	void				setBuff(int buffValue);
+	// setBuff2: XML <e type="setBuff2">[buffNumber],[timer]</e> = a cBuff with the buff number and
+	// duration given inline, so the skill's <data> needs no cBuff attackType / attackRangeY.
+	void				setBuff2(const string& value);
+	void				applyBuff(const string& buffType, int buffValue, float buffStayTime);
+	// A cBuff given and taken away from code (the trap dimension's own buff, see TrapSystem):
+	// endCBuff() cancels the timed expiry and clears the buff at once.
+	void				startCBuff(int buffNumber, float seconds) { applyBuff("cBuff", buffNumber, seconds); }
+	void				endCBuff();
 	void				setCommand(const string& cmd);
 	void				setBuffEffect(const string& type);
 	void				removeBuffEffect(const string& type);
