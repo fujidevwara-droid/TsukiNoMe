@@ -40,6 +40,7 @@ namespace SkillEnum
 	mk_const(Kuroari);
 	mk_const(LeeBom);
 	mk_const(Mine);
+	mk_const(MinePlain);
 	mk_const(Mouse);
 	mk_const(Paku);
 	mk_const(PaperRain);
@@ -68,6 +69,7 @@ namespace SkillEnum
 	mk_const(Suijin);
 	mk_const(SuiRyuDan);
 	mk_const(TamaBomb);
+	mk_const(TamaBomb3);
 	mk_const(Tenmu);
 	mk_const(ThunderWave);
 	mk_const(Tiger);

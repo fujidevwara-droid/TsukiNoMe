@@ -3025,7 +3025,7 @@ void CharacterBase::disableBuff(float dt)
 		if (_shadow)
 			_shadow->setVisible(true);
 	}
-	else if (_skillChangeBuffValue && getName() == HeroEnum::Tobi)
+	else if (_skillChangeBuffValue && (getName() == HeroEnum::Tobi || getName() == HeroEnum::Tobi2))
 	{
 		setOpacity(255);
 	}
@@ -3720,7 +3720,9 @@ void CharacterBase::setMon(const string& monName)
 		monName == "SakuraBom" ||
 		monName == "Shoryu" ||
 		monName == "Stream" ||
-		monName == "FakeMinato")
+		monName == "FakeMinato" ||
+		monName == SkillEnum::MinePlain ||
+		monName == SkillEnum::TamaBomb3)
 	{
 		monster->setPosition(Vec2(getPositionX(), _originY ? _originY : getPositionY()));
 		_monsterArray.push_back(monster);

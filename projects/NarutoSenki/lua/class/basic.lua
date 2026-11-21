@@ -24,7 +24,7 @@ ns.CharactersLayout = {
     -- },
     -- Page Three
     -- {
-        _None, 		   'Tobi', 		    'Konan',		_None,      --[[ Right ]] 'Pain',        _None,         _None,
+        'Tobi2', 		   'Tobi', 		    'Konan',		_None,      --[[ Right ]] 'Pain',        _None,         _None,
         _None, 		    'Deidara', 		'Kakuzu', 		'Hidan',    --[[ Right ]] 'Kimimaro',    _None,         _None,
         'Itachi', 		'Kisame',		_None, 		    _None,      --[[ Right ]] 'Madara', 		 _None,         _None,
         -- },

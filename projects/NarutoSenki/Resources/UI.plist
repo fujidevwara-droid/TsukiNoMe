@@ -4886,7 +4886,9 @@
     <key>Tobi_avator.png</key>
     <dict>
       <key>aliases</key>
-      <array/>
+      <array>
+        <string>Tobi2_avator.png</string>
+      </array>
       <key>anchor</key>
       <string>{0.46,0.5}</string>
       <key>spriteOffset</key>
@@ -4903,7 +4905,9 @@
     <key>Tobi_skill1.png</key>
     <dict>
       <key>aliases</key>
-      <array/>
+      <array>
+        <string>Tobi2_skill1.png</string>
+      </array>
       <key>anchor</key>
       <string>{0.5,0.5}</string>
       <key>spriteOffset</key>
@@ -4920,7 +4924,9 @@
     <key>Tobi_skill2.png</key>
     <dict>
       <key>aliases</key>
-      <array/>
+      <array>
+        <string>Tobi2_skill2.png</string>
+      </array>
       <key>anchor</key>
       <string>{0.5,0.5}</string>
       <key>spriteOffset</key>
@@ -4937,7 +4943,9 @@
     <key>Tobi_skill3.png</key>
     <dict>
       <key>aliases</key>
-      <array/>
+      <array>
+        <string>Tobi2_skill3.png</string>
+      </array>
       <key>anchor</key>
       <string>{0.5,0.5}</string>
       <key>spriteOffset</key>
@@ -4954,7 +4962,9 @@
     <key>Tobi_skill4.png</key>
     <dict>
       <key>aliases</key>
-      <array/>
+      <array>
+        <string>Tobi2_skill4.png</string>
+      </array>
       <key>anchor</key>
       <string>{0.5,0.5}</string>
       <key>spriteOffset</key>
@@ -4971,7 +4981,9 @@
     <key>Tobi_skill5.png</key>
     <dict>
       <key>aliases</key>
-      <array/>
+      <array>
+        <string>Tobi2_skill5.png</string>
+      </array>
       <key>anchor</key>
       <string>{0.5,0.5}</string>
       <key>spriteOffset</key>

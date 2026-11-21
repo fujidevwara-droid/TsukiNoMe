@@ -39,6 +39,7 @@ constexpr const char *kHeroList[] = {
 	HeroEnum::Suigetsu,
 	HeroEnum::Tenten,
 	HeroEnum::Tobi,
+	HeroEnum::Tobi2,
 	HeroEnum::Tobirama,
 	HeroEnum::Tsunade,
 };

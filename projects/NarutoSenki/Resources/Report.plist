@@ -1775,7 +1775,9 @@
     <key>Tobi_rp.png</key>
     <dict>
       <key>aliases</key>
-      <array/>
+      <array>
+        <string>Tobi2_rp.png</string>
+      </array>
       <key>anchor</key>
       <string>{0.5,0.5}</string>
       <key>spriteOffset</key>
@@ -1792,7 +1794,9 @@
     <key>Tobi_rpf.png</key>
     <dict>
       <key>aliases</key>
-      <array/>
+      <array>
+        <string>Tobi2_rpf.png</string>
+      </array>
       <key>anchor</key>
       <string>{0.5,0.5}</string>
       <key>spriteOffset</key>

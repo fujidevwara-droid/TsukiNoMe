@@ -94,6 +94,7 @@ void GameOver::listResult()
 		currPlayer->getName() == HeroEnum::SageJiraiya ||
 		currPlayer->getName() == HeroEnum::Minato ||
 		currPlayer->getName() == HeroEnum::Tobi ||
+		currPlayer->getName() == HeroEnum::Tobi2 ||
 		currPlayer->getName() == HeroEnum::Lee ||
 		currPlayer->getName() == HeroEnum::RockLee ||
 		currPlayer->getName() == HeroEnum::Hinata ||

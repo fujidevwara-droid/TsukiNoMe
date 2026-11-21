@@ -1282,7 +1282,9 @@
     <key>Tobi_small.png</key>
     <dict>
       <key>aliases</key>
-      <array/>
+      <array>
+        <string>Tobi2_small.png</string>
+      </array>
       <key>anchor</key>
       <string>{0.5,0.5}</string>
       <key>spriteOffset</key>
