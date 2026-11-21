@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<unit>
+
+	<action name="Idle">
+		<data>
+			<p type="attackType">Shenwei</p>
+			<p type="attackValue">0</p>
+			<p type="attackRangeX">51</p>
+			<p type="attackRangeY">11</p>
+			<p type="cd">224</p>
+		</data>
+		<frame>
+			<f>Unknown</f>
+			<f>Unknown</f>
+			<f>Unknown</f>
+			<e type="setDetonation">0</e>
+		</frame>
+	</action>
+
+	<action name="Walk">
+		<frame>
+			<f>Unknown</f>
+		</frame>
+	</action>
+
+	<action name="Hurt">
+		<frame>
+		</frame>
+	</action>
+
+	<action name="AirHurt">
+		<frame>
+		</frame>
+	</action>
+
+	<action name="KnockDown">
+		<frame>
+		</frame>
+	</action>
+
+	<action name="Float">
+		<frame>
+		</frame>
+	</action>
+
+	<action name="Dead">
+		<frame>
+			<f>Unknown</f>
+		</frame>
+	</action>
+
+	<action name="nAttack">
+		<data>
+			<p type="attackType">aAttack</p>
+			<p type="attackValue">100</p>
+			<p type="attackRangeX">32</p>
+			<p type="attackRangeY">32</p>
+			<p type="cd">0</p>
+		</data>
+		<frame>
+			<e type="setCommand">findTarget</e>
+			<e type="setCommand">setTransport</e>
+			<f>Fallen_001</f>
+			<f>Fallen_002</f>
+			<f>Fallen_003</f>
+			<f>Fallen_004</f>
+			<f>Fallen_005</f>
+			<e type="setAttackBox">b_hit</e>
+			<e type="setSound">Audio/Jugo/Effect/ground.mp3</e>
+			<f>Fallen_006</f>
+			<e type="setAttackBox">b_hit</e>
+			<e type="setSound">Audio/Jugo/Effect/ground.mp3</e>
+			<f>Fallen_007</f>
+			<e type="setAttackBox">b_hit</e>
+			<e type="setSound">Audio/Jugo/Effect/ground.mp3</e>
+			<f>Fallen_008</f>
+			<f>Fallen_009</f>
+			<e type="setAttackBox">a_hit</e>
+			<f>Fallen_010</f>
+			<f>Fallen_011</f>
+			<e type="setAttackBox">a_hit</e>
+			<f>Fallen_012</f>
+			<f>Fallen_013</f>
+			<e type="setAttackBox">a_hit</e>
+			<f>Fallen_014</f>
+			<f>Fallen_015</f>
+			<f>Fallen_016</f>
+			<f>Fallen_017</f>
+			<f>Fallen_018</f>
+			<f>Fallen_019</f>
+			<f>Unknown</f>
+			<e type="setDetonation">0</e>
+		</frame>
+	</action>
+
+</unit>

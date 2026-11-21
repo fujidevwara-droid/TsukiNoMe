@@ -63,6 +63,7 @@ namespace HeroEnum
 	mk_const(Tenten);
 	mk_const(Tobi);
 	mk_const(Tobi2);
+	mk_const(TobiB);
 	mk_const(Tobirama);
 	mk_const(Tsunade);
 

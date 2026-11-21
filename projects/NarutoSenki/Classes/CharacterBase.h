@@ -311,6 +311,14 @@ public:
 	int				_spcAttackRangeY3;
 	uint32_t		_spcAttackCD3;
 
+	// skillSPC4 (the XML's skill09): its frames were always read for every hero, its <data>
+	// only when the skill09 has one (TobiB's replacement for skill1 while cBuff 18 is on).
+	PROP_UInt(_spcAttackValue4, SpcAttackValue4);
+	PROP_REF(string, _spcAttackType4, SpcAttack4Type);
+	int				_spcAttackRangeX4 = 0;
+	int				_spcAttackRangeY4 = 0;
+	uint32_t		_spcAttackCD4 = 0;
+
 	// Extended skill slots (skillSPC6-15): data only, no HUD button or click
 	// dispatch, same as skillSPC1-5. They carry the combat stats (type, value,
 	// range, cooldown) for character-specific mechanics that need more than the

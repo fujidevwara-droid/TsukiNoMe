@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<unit>
+
+	<action name="Idle">
+		<data>
+			<p type="attackType">Shenwei</p>
+			<p type="attackValue">0</p>
+			<p type="attackRangeX">51</p>
+			<p type="attackRangeY">11</p>
+			<p type="cd">224</p>
+		</data>
+		<frame>
+			<f>Shenwei_001</f>
+		</frame>
+	</action>
+
+	<action name="Walk">
+		<frame>
+			<f>Shenwei_001</f>
+		</frame>
+	</action>
+
+	<action name="Hurt">
+		<frame>
+		</frame>
+	</action>
+
+	<action name="AirHurt">
+		<frame>
+		</frame>
+	</action>
+
+	<action name="KnockDown">
+		<frame>
+		</frame>
+	</action>
+
+	<action name="Float">
+		<frame>
+		</frame>
+	</action>
+
+	<action name="Dead">
+		<frame>
+			<f>Shenwei_001</f>
+		</frame>
+	</action>
+
+	<action name="nAttack">
+		<data>
+			<p type="attackType">aAttack</p>
+			<p type="attackValue">460</p>
+			<p type="attackRangeX">196</p>
+			<p type="attackRangeY">128</p>
+			<p type="cd">0</p>
+		</data>
+		<frame>
+			<e type="setSound">Audio/Jugo/Effect/kamui.mp3</e>
+			<f>Shenwei_001</f>
+			<e type="setAttackBox">s_hit</e>
+			<f>Shenwei_002</f>
+			<f>Shenwei_003</f>
+			<e type="setAttackBox">s_hit</e>
+			<f>Shenwei_004</f>
+			<f>Shenwei_005</f>
+			<e type="setAttackBox">s_hit</e>
+			<f>Shenwei_006</f>
+			<f>Shenwei_001</f>
+			<e type="setAttackBox">s_hit</e>
+			<e type="setBanishMap">KamuiDimension, 2, 25, 8, 0, 1, 18</e>
+			<f>Shenwei_002</f>
+			<f>Shenwei_003</f>
+			<e type="setAttackBox">s_hit</e>
+			<f>Shenwei_004</f>
+			<f>Shenwei_005</f>
+			<e type="setAttackBox">s_hit</e>
+			<f>Shenwei_006</f>
+			<e type="setAttackBox">s_hit</e>
+			<e type="setSound">Audio/TobiB/Effect/kamui.mp3</e>
+			<f>Shenwei_001</f>
+			<e type="setAttackBox">s_hit</e>
+			<f>Shenwei_002</f>
+			<f>Shenwei_003</f>
+			<e type="setAttackBox">s_hit</e>
+			<f>Shenwei_004</f>
+			<f>Shenwei_005</f>
+			<e type="setAttackBox">ct_hit</e>
+			<f>Shenwei_006</f>
+			<f>Shenwei_007</f>
+			<f>Shenwei_008</f>
+			<f>Shenwei_009</f>
+			<f>Shenwei_010</f>
+			<f>Shenwei_011</f>
+			<f>Shenwei_012</f>
+			<e type="setDetonation">0</e>
+		</frame>
+	</action>
+
+</unit>

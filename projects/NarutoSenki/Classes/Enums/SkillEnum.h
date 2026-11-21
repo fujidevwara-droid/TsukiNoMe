@@ -61,6 +61,7 @@ namespace SkillEnum
 	mk_const(Shark2);
 	mk_const(Shenwei);
 	mk_const(Shenwei2);
+	mk_const(Shenwei3);
 	mk_const(Shoryu);
 	mk_const(Snake);
 	mk_const(Spider);

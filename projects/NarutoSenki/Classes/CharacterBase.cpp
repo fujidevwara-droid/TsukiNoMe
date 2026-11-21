@@ -857,12 +857,14 @@ void CharacterBase::acceptAttack(Ref* object)
 										attacker->_state == State::OATTACK)))
 							{
 								if (attacker->_isCatchOne == false ||
-									attacker->getName() == SkillEnum::Shenwei)
+									attacker->getName() == SkillEnum::Shenwei ||
+									attacker->getName() == SkillEnum::Shenwei3)
 								{
 									if (attacker->_master)
 									{
 										if (attacker->getName() == SkillEnum::Kuroari ||
 											attacker->getName() == SkillEnum::Shenwei ||
+											attacker->getName() == SkillEnum::Shenwei3 ||
 											attacker->getName() == SkillEnum::Sabaku ||
 											attacker->getName() == SkillEnum::Shenwei2)
 										{
@@ -3111,7 +3113,7 @@ void CharacterBase::disableBuff(float dt)
 		if (_shadow)
 			_shadow->setVisible(true);
 	}
-	else if (_skillChangeBuffValue && (getName() == HeroEnum::Tobi || getName() == HeroEnum::Tobi2))
+	else if (_skillChangeBuffValue && (getName() == HeroEnum::Tobi || getName() == HeroEnum::Tobi2 || getName() == HeroEnum::TobiB))
 	{
 		setOpacity(255);
 	}
@@ -3808,7 +3810,9 @@ void CharacterBase::setMon(const string& monName)
 		monName == "Stream" ||
 		monName == "FakeMinato" ||
 		monName == SkillEnum::MinePlain ||
-		monName == SkillEnum::TamaBomb3)
+		monName == SkillEnum::TamaBomb3 ||
+		monName == "Fallen" ||
+		monName == "FallinDown")
 	{
 		monster->setPosition(Vec2(getPositionX(), _originY ? _originY : getPositionY()));
 		_monsterArray.push_back(monster);
@@ -3914,7 +3918,8 @@ void CharacterBase::setMon(const string& monName)
 	}
 	else if (monName == "Jibaku" ||
 		monName == "JibakuEX" ||
-		monName == "Shenwei")
+		monName == "Shenwei" ||
+		monName == "Shenwei3")
 	{
 		monster->setPosition(Vec2(getPositionX() + (_isFlipped ? -96 : 96), getPositionY()));
 		_monsterArray.push_back(monster);
@@ -4144,7 +4149,10 @@ void CharacterBase::setMon(const string& monName)
 	else if (monName == "InkBird" ||
 		monName == "FakeTobirama" ||
 		monName == "TamaBomb" ||
-		monName == "Shenwei2")
+		monName == "Shenwei2" ||
+		monName == "Shenwei4" ||
+		monName == "ShenweiAlly" ||
+		monName == "ShenweiAlly2")
 	{
 		_monsterArray.push_back(monster);
 		monster->attack(NAttack);

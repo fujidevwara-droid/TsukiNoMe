@@ -217,6 +217,11 @@ public:
 			tmpAction = (CCArray*)(animationArray->objectAtIndex(16));
 			skillSPC4Array = (CCArray*)(tmpAction->objectAtIndex(1));
 			skillSPC4Array->retain();
+			// Only a skill09 that has a <data> block (attackType...) gives SPC4 combat stats.
+			tmpData = (CCArray*)(tmpAction->objectAtIndex(0));
+			readData(tmpData, _spcAttackType4, tmpValue, _spcAttackRangeX4, _spcAttackRangeY4, _spcAttackCD4, tmpCombatPoint);
+			if (!_spcAttackType4.empty())
+				setSpcAttackValue4(tmpValue);
 
 			CC_BREAK_IF(animationArray->count() <= 17);
 			tmpAction = (CCArray*)(animationArray->objectAtIndex(17));

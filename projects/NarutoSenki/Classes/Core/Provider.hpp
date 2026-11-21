@@ -40,6 +40,7 @@
 #include "Shinobi/Tenten.hpp"
 #include "Shinobi/Tobi.hpp"
 #include "Shinobi/Tobi2.hpp"
+#include "Shinobi/TobiB.hpp"
 #include "Shinobi/Tobirama.hpp"
 #include "Shinobi/Tsunade.hpp"
 
@@ -144,6 +145,7 @@ public:
 		is("Tenten") 						ptr = new Tenten();
 		is("Tobi") 							ptr = new Tobi();
 		is("Tobi2") 						ptr = new Tobi2();
+		is("TobiB") 						ptr = new TobiB();
 		is("Tobirama") 						ptr = new Tobirama();
 		is("Tsunade") 						ptr = new Tsunade();
 		is_or("Roshi", "Han")				ptr = new Guardian();
