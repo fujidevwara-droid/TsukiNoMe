@@ -139,6 +139,9 @@ public:
 	virtual bool usesCustomClock() const { return false; }
 	// Heroes that are not on the field at start but whose art must be preloaded.
 	virtual vector<string> getExtraPreloadChars() { return {}; }
+	// True while the mode is on a boss fight (Arcade boss rounds). Boss-only scripted
+	// animations from Unit/Bosses/<boss>.xml (e.g. Phase2) only run when this is true.
+	virtual bool isBossRound() const { return false; }
 
 	inline const GameData &getGameData() { return gd; }
 	inline int getOldCheats() { return oldCheats; }

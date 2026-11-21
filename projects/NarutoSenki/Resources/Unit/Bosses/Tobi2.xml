@@ -10,7 +10,26 @@
 			<p type="cd">0</p>
 		</data>
 		<frame>
-			<f>Tobi2_Walk_01</f>
+			<e type="pauseEveryMovement">1</e>
+			<e type="setZoom2">1.25</e>
+			<e type="setSound">Audio/Bosses/Tobi2_transition1.ogg</e>
+			<f>Tobi2_Skill01_006</f>
+			<f>Tobi2_Skill01_007</f>
+			<f>Tobi2_Skill01_008</f>
+			<e type="setDelay">260</e>
+			<e type="stopBGAudio">1</e>
+			<e type="setZoom2">1.375</e>
+			<f>Tobi2_Skill01_006</f>
+			<e type="setSound">Audio/Bosses/Tobi2_transition2.ogg</e>
+			<e type="setDelay">118</e>
+			<e type="setZoom2">1.5</e>
+			<f>TobiB_Skill05_036</f>
+			<e type="setSound">Audio/Bosses/Tobi2_transition3.ogg</e>
+			<f>TobiB_Idle_06</f>
+			<e type="addCkrBar">3</e>
+			<e type="setDelay">130</e>
+			<e type="playNewBGAudio">TobiB</e>
+			<e type="setSwitchChar">TobiB</e>
 		</frame>
 	</action>
 </unit>

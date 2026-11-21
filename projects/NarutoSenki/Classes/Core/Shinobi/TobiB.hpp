@@ -24,10 +24,15 @@
  */
 class TobiB : public Hero
 {
+protected: // Tobi2 (the Arcade boss) runs this code once it has turned into TobiB
 	void perform() override
 	{
 		_mainTarget = nullptr;
 		findHeroHalf();
+
+		// Skill3 off cooldown starts a new "skill4 first?" decision.
+		if (!_isCanSkill3)
+			_isSkill3Rolled = false;
 
 		tryBuyGear(GearType::Gear03, GearType::Gear02, GearType::Gear05);
 
@@ -61,8 +66,9 @@ class TobiB : public Hero
 					attack(OUGIS1);
 					return;
 				}
-				else if (_isCanSkill3 && !_skillChangeBuffValue)
+				else if (_isCanSkill3 && !_skillChangeBuffValue && !holdSkill3ForSkill4())
 				{
+					_isSkill3Rolled = false;
 					changeSide(sp);
 					attack(SKILL3);
 					return;
@@ -166,6 +172,28 @@ class TobiB : public Hero
 		}
 
 		checkHealingState();
+	}
+
+	// Skill3 swaps the skill set (skill4 included), so skill4 is the better opener. When skill3
+	// is ready but skill4 is not, the first time it is considered there is a 60% chance he holds
+	// it back for up to ~4 seconds (40 AI ticks) hoping skill4 gets ready first; otherwise it is
+	// used straight away. Skill4 already has priority over skill3 in perform() once it is ready.
+	bool holdSkill3ForSkill4()
+	{
+		if (_isCanOugis1 || _isControlled)
+			return false;
+
+		if (!_isSkill3Rolled)
+		{
+			_isSkill3Rolled = true;
+			_skill3HoldTicks = (rand() % 100 < 60) ? 40 : 0;
+		}
+
+		if (_skill3HoldTicks <= 0)
+			return false;
+
+		--_skill3HoldTicks;
+		return true;
 	}
 
 	// Runs whenever a cBuff starts (applyBuff) or is taken away (endCBuff). By then
@@ -458,6 +486,8 @@ class TobiB : public Hero
 	}
 
 private:
+	bool _isSkill3Rolled = false; // see holdSkill3ForSkill4()
+	int _skill3HoldTicks = 0;
 	bool _isPhaseActive = false; // cBuff 17 is on
 	bool _isSwapActive = false;	 // cBuff 18 is on
 

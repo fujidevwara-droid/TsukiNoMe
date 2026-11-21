@@ -147,8 +147,11 @@ void BattleRuntimeSystem::updateViewPoint(GameLayer* layer) const
 
 	// Screen's left edge shows world x = (0 - origin) / s, so origin <= -s * leftEdge;
 	// screen's right edge shows (W - origin) / s, so origin >= W - s * rightEdge.
-	const Vec2 zoomed(fit(winSize.width / 2 - s * playerPoint.x, winSize.width - s * rightEdge, -s * leftEdge),
-					  fit(winSize.height / 2 - s * playerPoint.y, winSize.height - s * mapPixels.height, 0.0f));
+	// Centre on the unit that started the zoom (if it is on this stage), else on the observed unit.
+	CharacterBase *focus = layer->_zoomFocus;
+	const Vec2 focusPoint = (focus && &focus->stage() == &stage) ? focus->getPosition() : playerPoint;
+	const Vec2 zoomed(fit(winSize.width / 2 - s * focusPoint.x, winSize.width - s * rightEdge, -s * leftEdge),
+					  fit(winSize.height / 2 - s * focusPoint.y, winSize.height - s * mapPixels.height, 0.0f));
 
 	// base is the origin at scale 1, where the anchor term is zero.
 	const Vec2 origin = base + (zoomed - base) * w;
@@ -221,7 +224,18 @@ GameLayer::~GameLayer()
 {
 	_gLayer = nullptr;
 	CC_SAFE_RELEASE_NULL(_invertCaster);
+	CC_SAFE_RELEASE_NULL(_zoomFocus);
 	removeKeyEventHandler();
+}
+
+void GameLayer::setZoomFocus(CharacterBase *focus)
+{
+	if (focus == _zoomFocus)
+		return;
+	if (focus)
+		focus->retain();
+	CC_SAFE_RELEASE(_zoomFocus);
+	_zoomFocus = focus;
 }
 
 bool GameLayer::init()
@@ -1140,6 +1154,8 @@ void GameLayer::updateViewPoint(float dt)
 	// Advances with the layer's own scheduler, so it holds still while an ougi
 	// cut-in has the layer paused.
 	_zoom.update(dt);
+	if (!_zoom.isActive())
+		setZoomFocus(nullptr);
 	_shake.update(dt);
 	_veil.update(dt);
 	_invert.update(dt);

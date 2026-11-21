@@ -243,9 +243,14 @@ public:
 	// Camera zoom (see Systems/CameraZoom.hpp). Started by the character XML tag
 	// <e type="setZoom">factor, seconds</e> through CharacterBase::setZoom().
 	CameraZoom _zoom;
-	void zoomCamera(float factor, float holdSeconds) { _zoom.trigger(factor, holdSeconds); }
+	// The unit the zoom is centred on: whoever's XML started it (the player, an AI hero, a boss).
+	// Kept alive while the zoom lasts and dropped when it ends. Without one, the camera's
+	// usual unit (the player) is used.
+	CharacterBase *_zoomFocus = nullptr;
+	void setZoomFocus(CharacterBase *focus);
+	void zoomCamera(float factor, float holdSeconds, CharacterBase *focus = nullptr) { setZoomFocus(focus); _zoom.trigger(factor, holdSeconds); }
 	// Frame-counted version (setZoom2): returns the id release has to be given.
-	int zoomCameraHeld(float factor, float failsafeSeconds) { return _zoom.triggerHeld(factor, failsafeSeconds); }
+	int zoomCameraHeld(float factor, float failsafeSeconds, CharacterBase *focus = nullptr) { setZoomFocus(focus); return _zoom.triggerHeld(factor, failsafeSeconds); }
 	void releaseZoom(int id) { _zoom.release(id); }
 
 	// Screen shake (see Systems/ScreenShake.hpp): from the XML tag

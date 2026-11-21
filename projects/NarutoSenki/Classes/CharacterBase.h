@@ -732,6 +732,23 @@ public:
 	// setTransform does: it is reloaded in place as the new character (data, animations, skills'
 	// frames) keeping the HP left, max HP and attack. In every mode, Duels and Arcade included.
 	void				setSwitchChar(const string& name);
+	// Called at the end of setSwitchChar, once the hero is reloaded as `name`. A hero class that
+	// has to behave differently in the new form (Tobi2 -> TobiB) overrides this.
+	virtual void		onSwitchedChar(const string& name) {}
+
+	// XML <e type="addCkrBar">2</e>: adds that many whole bars to the shared chakra pool of this
+	// hero's side. Duels and Arcade only - it does nothing in any other mode. Capped at a full pool.
+	void				addCkrBar(const string& bars);
+
+	// Arcade boss "Phase2" (Unit/Bosses/<name>.xml): once the boss's HP is at or below the
+	// action's <p type="attackValue"> percent, the boss turns invincible right away, waits until its
+	// current animation returns to idle, then plays Phase2 one time and becomes vulnerable again
+	// when it ends. Does nothing when the boss has no xml / no Phase2 action.
+	void				checkBossPhase2();
+	void				waitBossPhase2(float dt);
+	void				playBossPhase2(float dt);
+	bool				_isPhase2Played = false;
+	float				_phase2Waited = 0.0f;
 	void				setFreezeUntil(std::shared_ptr<FrameLink> link);
 	void				releaseFreezeLink(std::shared_ptr<FrameLink> link);
 	// void				setItemEffect(const string &type);

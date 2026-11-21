@@ -71,7 +71,7 @@ public:
 	}
 
 	int currentStage() const { return stage; }
-	bool isBossRound() const { return stage % kBossInterval == 0; }
+	bool isBossRound() const override { return stage % kBossInterval == 0; }
 
 	// The player's side lost everything -> the run is over and the live streak
 	// resets. The per-hero best stage is a permanent record and is untouched.

@@ -1403,6 +1403,11 @@ FiniteTimeAction* CharacterBase::createAnimation(CCArray* ationArray, uint8_t fp
 					auto call = CallFunc::create(std::bind(&CharacterBase::setSwitchChar, this, keyValue));
 					list.pushBack(call);
 				}
+				else if (key == "addCkrBar")
+				{
+					auto call = CallFunc::create(std::bind(&CharacterBase::addCkrBar, this, keyValue));
+					list.pushBack(call);
+				}
 				else if (key == "stopBGAudio")
 				{
 					auto call = CallFunc::create(std::bind(&CharacterBase::stopBGAudio, this));
@@ -1629,6 +1634,7 @@ void CharacterBase::setDamage(CharacterBase* attacker, const string& effectType,
 	Debug::PrintDamgeInfo(this, attacker, currentAttacker, attackValue, realValue, effectType);
 #endif
 	setHPValue(getHP() <= realValue ? 0 : getHP() - realValue);
+	checkBossPhase2();
 
 	if (isClone() && _master && !_master->_isControlled)
 	{
@@ -1876,9 +1882,7 @@ static bool parseAmountAndFrames(const string& args, float& amount, int& frames)
 
 void CharacterBase::setZoomUntil(float factor, std::shared_ptr<FrameLink> link)
 {
-	if (!isPlayer() && !isActivePlayerBody())
-		return;
-	link->id = getGameLayer()->zoomCameraHeld(factor, link->failsafe);
+	link->id = getGameLayer()->zoomCameraHeld(factor, link->failsafe, this);
 }
 
 void CharacterBase::releaseZoomLink(std::shared_ptr<FrameLink> link)
@@ -1889,8 +1893,6 @@ void CharacterBase::releaseZoomLink(std::shared_ptr<FrameLink> link)
 
 void CharacterBase::setShakeUntil(float strength, std::shared_ptr<FrameLink> link)
 {
-	if (!isPlayer() && !isActivePlayerBody())
-		return;
 	link->id = getGameLayer()->shakeScreenHeld(strength, link->failsafe);
 }
 
@@ -1902,9 +1904,6 @@ void CharacterBase::releaseShakeLink(std::shared_ptr<FrameLink> link)
 
 void CharacterBase::setShake(const string& args)
 {
-	if (!isPlayer() && !isActivePlayerBody())
-		return;
-
 	string cleaned = args;
 	std::replace(cleaned.begin(), cleaned.end(), ',', ' ');
 	std::istringstream in(cleaned);
@@ -1920,10 +1919,6 @@ void CharacterBase::setShake(const string& args)
 
 void CharacterBase::setZoom(const string& args)
 {
-	// Only the hero the human is playing moves the camera.
-	if (!isPlayer() && !isActivePlayerBody())
-		return;
-
 	// "<factor>, <seconds>": the comma and any spaces both just separate the two.
 	string cleaned = args;
 	std::replace(cleaned.begin(), cleaned.end(), ',', ' ');
@@ -1935,7 +1930,7 @@ void CharacterBase::setZoom(const string& args)
 		return;
 	in >> seconds;
 
-	getGameLayer()->zoomCamera(factor, seconds);
+	getGameLayer()->zoomCamera(factor, seconds, this);
 }
 
 // "<r>, <g>, <b>, <a>[, <extra>]": the colour (0-255 each, a is the opacity) and an
@@ -1988,6 +1983,97 @@ void CharacterBase::releaseVeilLink(std::shared_ptr<FrameLink> link)
 		getGameLayer()->releaseVeil(link->id);
 }
 
+void CharacterBase::checkBossPhase2()
+{
+	if (_isPhase2Played || getHP() == 0 || _state == State::DEAD)
+		return;
+
+	// Arcade boss rounds only, and only the boss itself (the enemy side).
+	if (!isDuelMode() || !getGameModeHandler()->isBossRound() || getGameLayer()->duel().isPlayerSide(this))
+		return;
+
+	// Bosses without a Unit/Bosses xml, or without a Phase2 action, just skip this.
+	auto action = getExtAction("Phase2");
+	if (!action)
+		return;
+
+	// <p type="attackValue">50</p> = start at 50% HP.
+	int percent = -1;
+	auto data = (CCArray*)action->objectAtIndex(0);
+	for (unsigned int i = 0; data && i < data->count(); ++i)
+	{
+		auto value = (CCString*)((CCDictionary*)data->objectAtIndex(i))->objectForKey("attackValue");
+		if (value)
+			percent = value->intValue();
+	}
+	if (percent < 0 || static_cast<uint64_t>(getHP()) * 100 > static_cast<uint64_t>(getMaxHP()) * percent)
+		return;
+
+	// Protected from now on, but the animation waits for the current one to finish
+	// (waitBossPhase2), so the boss is never cut off mid-move.
+	_isPhase2Played = true;
+	_isInvincible = true;
+	_phase2Waited = 0.0f;
+	schedule(schedule_selector(CharacterBase::waitBossPhase2));
+}
+
+void CharacterBase::waitBossPhase2(float dt)
+{
+	// Safety net: if the boss somehow never reaches idle, start anyway after this long
+	// so it can never stay invincible forever.
+	const float kMaxWait = 5.0f;
+
+	if (_state == State::DEAD || getHP() == 0)
+	{
+		unschedule(schedule_selector(CharacterBase::waitBossPhase2));
+		_isInvincible = false;
+		return;
+	}
+
+	// A skill that ends may have cleared the flag meanwhile.
+	_isInvincible = true;
+	_phase2Waited += dt;
+
+	if (_state != State::IDLE && _phase2Waited < kMaxWait)
+		return;
+
+	unschedule(schedule_selector(CharacterBase::waitBossPhase2));
+	playBossPhase2(0.0f);
+}
+
+void CharacterBase::playBossPhase2(float dt)
+{
+	auto frames = getExtFrames("Phase2");
+	if (_state == State::DEAD || getHP() == 0 || !frames)
+	{
+		_isInvincible = false;
+		return;
+	}
+
+	stopAllActions();
+	unschedule(schedule_selector(CharacterBase::stopMove));
+	_state = State::SATTACK; // not IDLE, so the animation's closing idle() takes effect
+	_isInvincible = true;
+
+	auto anim = createAnimation(frames, 10, false, true);
+	auto done = CallFunc::create([this]() { _isInvincible = false; });
+	runAction(Sequence::create(anim, done, nullptr));
+}
+
+void CharacterBase::addCkrBar(const string& bars)
+{
+	// Duels and Arcade only: the other modes have no shared pool to add bars to.
+	if (!isDuelMode())
+		return;
+
+	const int count = atoi(bars.c_str());
+	if (count <= 0)
+		return;
+
+	auto &duel = getGameLayer()->duel();
+	duel.addChakra(duel.isPlayerSide(this), DuelChakra::kBarSize * static_cast<uint32_t>(count));
+}
+
 void CharacterBase::setSwitchChar(const string& name)
 {
 	if (name.empty() || name == getName())
@@ -2018,6 +2104,8 @@ void CharacterBase::setSwitchChar(const string& name)
 
 	if (isPlayer())
 		getGameLayer()->setHPLose(getHpPercent());
+
+	onSwitchedChar(name);
 }
 
 void CharacterBase::stopBGAudio()

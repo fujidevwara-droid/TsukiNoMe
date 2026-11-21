@@ -1,10 +1,41 @@
 #pragma once
 #include "Hero.hpp"
+#include "TobiB.hpp"
 
-class Tobi2 : public Hero
+// The Arcade boss. Its Phase2 turns it into TobiB with setSwitchChar, but the C++ object stays a
+// Tobi2, so from then on every override below hands over to TobiB's own code (AI, skill swap,
+// phase, hit handling). Without this the boss kept Tobi2's AI and Tobi2::changeAction, which
+// uses skillSPC1Array as its walk frames: with TobiB's data that is skill10, an attack.
+class Tobi2 : public TobiB
 {
+	bool isTobiBForm() { return getName() == HeroEnum::TobiB; }
+
+	// Turned into TobiB: start in the replaced-skill form (cBuff 18, skill1/2/4/5 -> skill09/10/11/12)
+	// and keep it, since nothing schedules its end.
+	void onSwitchedChar(const string &name) override
+	{
+		if (name != HeroEnum::TobiB)
+			return;
+
+		unschedule(schedule_selector(CharacterBase::resumeAction));
+		setWalkAction(createAnimation(walkArray, 10, true, false));
+		if (getOpacity() != 255)
+			setOpacity(255);
+		setWalkSpeed(224);
+		_originSpeed = 224;
+
+		_skillChangeBuffValue = 18;
+		changeAction();
+	}
+
 	void perform() override
 	{
+		if (isTobiBForm())
+		{
+			TobiB::perform();
+			return;
+		}
+
 		_mainTarget = nullptr;
 		findHeroHalf();
 
@@ -147,6 +178,12 @@ class Tobi2 : public Hero
 
 	void changeAction() override
 	{
+		if (isTobiBForm())
+		{
+			TobiB::changeAction();
+			return;
+		}
+
 		setWalkAction(createAnimation(skillSPC1Array, 10, true, false));
 
 		setWalkSpeed(320);
@@ -184,6 +221,12 @@ class Tobi2 : public Hero
 
 	void resumeAction(float dt) override
 	{
+		if (isTobiBForm())
+		{
+			TobiB::resumeAction(dt);
+			return;
+		}
+
 		setWalkAction(createAnimation(walkArray, 10, true, false));
 
 		if (getOpacity() != 255)
@@ -199,6 +242,12 @@ class Tobi2 : public Hero
 
 	void setActionResume() override
 	{
+		if (isTobiBForm())
+		{
+			TobiB::setActionResume();
+			return;
+		}
+
 		unschedule(schedule_selector(Tobi2::resumeAction));
 		setWalkAction(createAnimation(walkArray, 10, true, false));
 
@@ -217,6 +266,9 @@ class Tobi2 : public Hero
 
 	bool onAcceptAttack(CharacterBase *attacker) override
 	{
+		if (isTobiBForm())
+			return TobiB::onAcceptAttack(attacker);
+
 		if (_skillChangeBuffValue &&
 			(_state == State::IDLE ||
 			 _state == State::WALK ||
