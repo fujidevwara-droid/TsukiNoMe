@@ -289,6 +289,7 @@
 			<e type="setDelay">50</e>
 			<f>Tobi_Skill05_036</f>
 			<e type="setCommand">reInvincible</e>
+			<e type="setBuff">17</e>
 		</frame>
 	</action>
 

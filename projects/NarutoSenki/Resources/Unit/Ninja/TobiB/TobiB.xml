@@ -10,11 +10,11 @@
 			<p type="cd">224</p>
 		</data>
 		<frame>
-			<f>TobiB_Idle_001</f>
-			<f>TobiB_Idle_002</f>
-			<f>TobiB_Idle_003</f>
-			<f>TobiB_Idle_004</f>
-			<f>TobiB_Idle_005</f>
+			<f>TobiB_Idle_01</f>
+			<f>TobiB_Idle_02</f>
+			<f>TobiB_Idle_03</f>
+			<f>TobiB_Idle_04</f>
+			<f>TobiB_Idle_05</f>
 		</frame>
 	</action>
 
@@ -82,28 +82,28 @@
 			<p type="cd">0</p>
 		</data>
 		<frame>
-			<f>TobiB_NAttack_001</f>
-			<f>TobiB_NAttack_002</f>
-			<f>TobiB_NAttack_003</f>
+			<f>TobiB_NAttack_01</f>
+			<f>TobiB_NAttack_02</f>
+			<f>TobiB_NAttack_03</f>
 			<e type="setAttackBox">n_hit</e>
 			<e type="setSound">Audio/Effect/combo1.ogg</e>
-			<f>TobiB_NAttack_004</f>
-			<f>TobiB_NAttack_005</f>
-			<f>TobiB_NAttack_006</f>
+			<f>TobiB_NAttack_04</f>
+			<f>TobiB_NAttack_05</f>
+			<f>TobiB_NAttack_06</f>
 			<e type="setMove">8</e>
-			<f>TobiB_NAttack_007</f>
+			<f>TobiB_NAttack_07</f>
 			<e type="setSound">Audio/Effect/kong.ogg</e>
 			<e type="setAttackBox">n_hit</e>
 			<e type="setDelay">10</e>
-			<f>TobiB_NAttack_008</f>
-			<f>TobiB_NAttack_009</f>
-			<f>TobiB_NAttack_010</f>
-			<f>TobiB_NAttack_011</f>
+			<f>TobiB_NAttack_08</f>
+			<f>TobiB_NAttack_09</f>
+			<f>TobiB_NAttack_10</f>
+			<f>TobiB_NAttack_11</f>
 			<e type="setSound">Audio/TobiB/TobiB_combo.ogg</e>
 			<e type="setMove">16</e>
 			<e type="setAttackBox">l_hit</e>
 			<e type="setSound">Audio/Effect/combo3.ogg</e>
-			<f>TobiB_NAttack_012</f>
+			<f>TobiB_NAttack_12</f>
 			<e type="setDelay">20</e>
 		</frame>
 	</action>
@@ -123,18 +123,15 @@
 			<f>TobiB_Skill01_002</f>
 			<f>TobiB_Skill01_003</f>
 			<f>TobiB_Skill01_004</f>
-			<f>TobiB_Skill01_005</f>
 			<e type="setDelay">10</e>
-			<f>TobiB_Skill01_006</f>
-			<f>TobiB_Skill01_007</f>
 			<e type="setSound">Audio/Effect/goukakyu.ogg</e>
 			<e type="setAttackBox">b_hit</e>
+			<f>TobiB_Skill01_005</f>
+			<e type="setAttackBox">c_hit</e>
+			<f>TobiB_Skill01_006</f>
+			<e type="setAttackBox">c_hit</e>
+			<f>TobiB_Skill01_007</f>
 			<f>TobiB_Skill01_008</f>
-			<f>TobiB_Skill01_009</f>
-			<e type="setAttackBox">c_hit</e>
-			<f>TobiB_Skill01_010</f>
-			<e type="setAttackBox">c_hit</e>
-			<f>TobiB_Skill01_011</f>
 			<e type="setDelay">20</e>
 		</frame>
 	</action>
@@ -149,39 +146,39 @@
 		</data>
 		<frame>
 			<f>TobiB_Skill02_001</f>
-			<f>TobiB_Skill05_002</f>
+			<f>TobiB_Skill02_002</f>
 			<e type="setShadow">10</e>
 			<e type="setJump">true</e>
 			<e type="setChargeB">108</e>
-			<f>TobiB_Skill05_003</f>
+			<f>TobiB_Skill02_003</f>
 			<e type="setShadow">10</e>
-			<e type="setAttackBox">c_hit</e>
-			<f>TobiB_Skill05_004</f>
+			<e type="setAttackBox">o_hit</e>
+			<f>TobiB_Skill02_004</f>
 			<e type="setShadow">10</e>
-			<e type="setAttackBox">c_hit</e>
-			<f>TobiB_Skill05_005</f>
+			<e type="setAttackBox">o_hit</e>
+			<f>TobiB_Skill02_005</f>
 			<e type="setShadow">10</e>
-			<f>TobiB_Skill05_006</f>
-			<f>TobiB_Skill05_007</f>
+			<f>TobiB_Skill02_006</f>
+			<f>TobiB_Skill02_007</f>
 			<e type="setSound">Audio/TobiB/TobiB_skill2.ogg</e>
-			<f>TobiB_Skill05_008</f>
-			<f>TobiB_Skill05_009</f>
-			<f>TobiB_Skill05_010</f>
+			<f>TobiB_Skill02_008</f>
+			<f>TobiB_Skill02_009</f>
+			<f>TobiB_Skill02_010</f>
 			<e type="setChargeB">50</e>
-			<f>TobiB_Skill05_011</f>
+			<f>TobiB_Skill02_011</f>
 			<e type="setAttackBox">c_hit</e>
-			<f>TobiB_Skill05_012</f>
+			<f>TobiB_Skill02_012</f>
 			<e type="setAttackBox">c_hit</e>
-			<f>TobiB_Skill05_013</f>
+			<f>TobiB_Skill02_013</f>
 			<e type="setAttackBox">c_hit</e>
-			<f>TobiB_Skill05_014</f>
+			<f>TobiB_Skill02_014</f>
 			<e type="setAttackBox">c_hit</e>
-			<f>TobiB_Skill05_015</f>
+			<f>TobiB_Skill02_015</f>
 			<e type="setAttackBox">c_hit</e>
-			<f>TobiB_Skill05_016</f>
-			<f>TobiB_Skill05_017</f>
-			<f>TobiB_Skill05_018</f>
-			<f>TobiB_Skill05_019</f>
+			<f>TobiB_Skill02_016</f>
+			<f>TobiB_Skill02_017</f>
+			<f>TobiB_Skill02_018</f>
+			<f>TobiB_Skill02_019</f>
 		</frame>
 	</action>
 	<action name="skill03">
@@ -194,20 +191,20 @@
 			<p type="combatPoint">0</p>
 		</data>
 		<frame>
-			<f>TobiBFKS_Skill03_001</f>
+			<f>TobiB_Skill03_001</f>
 			<e type="setSound">Audio/TobiB/TobiB_skill3.ogg</e>
-			<f>TobiBFKS_Skill03_002</f>
-			<f>TobiBFKS_Skill03_003</f>
-			<f>TobiBFKS_Skill03_004</f>
-			<f>TobiBFKS_Skill03_005</f>
-			<f>TobiBFKS_Skill03_006</f>
+			<f>TobiB_Skill03_002</f>
+			<f>TobiB_Skill03_003</f>
+			<f>TobiB_Skill03_004</f>
+			<f>TobiB_Skill03_005</f>
+			<f>TobiB_Skill03_006</f>
 			<e type="setSkillEffect">sharingan2</e>
 			<e type="setSound">Audio/Effect/srg2.ogg</e>
 			<e type="toggleTrapDimension">1, 17</e> 
-			<f>TobiBFKS_Skill03_007</f>
-			<f>TobiBFKS_Skill03_008</f>
-			<f>TobiBFKS_Skill03_009</f>
-			<f>TobiBFKS_Skill03_010</f>
+			<f>TobiB_Skill03_007</f>
+			<f>TobiB_Skill03_008</f>
+			<f>TobiB_Skill03_009</f>
+			<f>TobiB_Skill03_010</f>
 		</frame>
 	</action>
 	<action name="skill04">
@@ -246,53 +243,51 @@
 		<frame>
 
 			<e type="setCommand">setInvincible</e>
-			<f>TobiB_Skill05_001.png</f>
+			<f>TobiB_Skill05_001</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_002.png</f>
+			<f>TobiB_Skill05_002</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_003.png</f>
+			<f>TobiB_Skill05_003</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_004.png</f>
+			<f>TobiB_Skill05_004</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_005.png</f>
+			<f>TobiB_Skill05_005</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_006.png</f>
-			<f>TobiB_Skill000.png</f>
+			<f>TobiB_Skill05_006</f>
 			<e type="setCommand">findTarget</e>
 			<e type="setCommand">setTransport</e>
-			<f>TobiB_Skill000.png</f>
-			<f>TobiB_Skill05_007.png</f>
-			<f>TobiB_Skill05_008.png</f>
+			<f>TobiB_Skill05_007</f>
+			<f>TobiB_Skill05_008</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_009.png</f>
+			<f>TobiB_Skill05_009</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_010.png</f>
+			<f>TobiB_Skill05_010</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_011.png</f>
+			<f>TobiB_Skill05_011</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_012.png</f>
+			<f>TobiB_Skill05_012</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_013.png</f>
+			<f>TobiB_Skill05_013</f>
 			<e type="setSound">Audio/TobiB/TobiB_skill2_1.ogg</e>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_014.png</f>
+			<f>TobiB_Skill05_014</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_015.png</f>
+			<f>TobiB_Skill05_015</f>
 			<e type="setAttackBox">b_hit</e>
-			<f>TobiB_Skill05_016.png</f>
+			<f>TobiB_Skill05_016</f>
 			<e type="setAttackBox">c_hit</e>
-			<f>TobiB_Skill05_017.png</f>
+			<f>TobiB_Skill05_017</f>
 			<e type="setAttackBox">c_hit</e>
-			<f>TobiB_Skill05_018.png</f>
+			<f>TobiB_Skill05_018</f>
 			<e type="setAttackBox">c_hit</e>
-			<f>TobiB_Skill05_019.png</f>
+			<f>TobiB_Skill05_019</f>
 			<e type="setAttackBox">c_hit</e>
-			<f>TobiB_Skill05_020.png</f>
-			<f>TobiB_Skill05_021.png</f>
-			<f>TobiB_Skill05_022.png</f>
-			<f>TobiB_Skill05_023.png</f>
-			<f>TobiB_Skill05_024.png</f>
-			<f>TobiB_Skill05_025.png</f>
+			<f>TobiB_Skill05_020</f>
+			<f>TobiB_Skill05_021</f>
+			<f>TobiB_Skill05_022</f>
+			<f>TobiB_Skill05_023</f>
+			<f>TobiB_Skill05_024</f>
+			<f>TobiB_Skill05_025</f>
 			<e type="setOugis">10</e>
 			<f>TobiB_Skill05_033</f>
 			<e type="setSound">Audio/TobiB/TobiB_skill5.ogg</e>
@@ -300,7 +295,7 @@
 			<e type="setDelay">10</e>
 			<f>TobiB_Skill05_034</f>
 			<e type="setDelay">10</e>
-			<e type="setMon">Shenwei</e>
+			<e type="setMon">Shenwei3</e>
 			<f>TobiB_Skill05_035</f>
 			<e type="setDelay">50</e>
 			<f>TobiB_Skill05_036</f>
@@ -323,12 +318,12 @@
 			<p type="cd">0</p>
 		</data>
 		<frame>
-			<f>TobiB_Skill10_01</f>
-			<f>TobiB_Skill10_02</f>
-			<f>TobiB_Skill10_03</f>
-			<f>TobiB_Skill10_04</f>
-			<f>TobiB_Skill10_05</f>
-			<f>TobiB_Skill10_06</f>
+			<f>TobiB_Walk_01</f>
+			<f>TobiB_Walk_02</f>
+			<f>TobiB_Walk_03</f>
+			<f>TobiB_Walk_04</f>
+			<f>TobiB_Walk_05</f>
+			<f>TobiB_Walk_06</f>
 		</frame>
 	</action>
 	<action name="skill09">
@@ -341,11 +336,13 @@
 			<p type="combatPoint">1920</p>
 		</data>
 		<frame>
-			<f>TobiB_Skill013_001</f>
+			<f>TobiB_Skill13_001</f>
+			<e type="setSkillEffect">sharingan2</e>
+			<e type="setSound">Audio/Effect/srg2.ogg</e>
 			<e type="setSound">Audio/TobiB/TobiB_skill1_1.ogg</e>
-			<f>TobiB_Skill013_002</f>
-			<f>TobiB_Skill013_003</f>
-			<f>TobiB_Skill013_004</f>
+			<f>TobiB_Skill13_002</f>
+			<f>TobiB_Skill13_003</f>
+			<f>TobiB_Skill13_004</f>
 			<e type="setMon">Fallen</e>
 		</frame>
 	</action>
@@ -361,52 +358,52 @@
 		<frame>
 
 			<e type="setCommand">setInvincible</e>
-			<f>TobiB_Skill05_001.png</f>
+			<f>TobiB_Skill05_001</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_002.png</f>
+			<f>TobiB_Skill05_002</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_003.png</f>
+			<f>TobiB_Skill05_003</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_004.png</f>
+			<f>TobiB_Skill05_004</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_005.png</f>
+			<f>TobiB_Skill05_005</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_006.png</f>
-			<f>TobiB_Skill000.png</f>
+			<f>TobiB_Skill05_006</f>
 			<e type="setCommand">findTarget</e>
 			<e type="setCommand">setTransport</e>
-			<f>TobiB_Skill05_007.png</f>
-			<e type="setSound">Audio/TobiB/TobiB_skill5.ogg</e>
-			<f>TobiB_Skill05_008.png</f>
+			<f>TobiB_Skill05_007</f>
+			<e type="setSound">Audio/TobiB/TobiB_skill2_1.ogg</e>
+			<f>TobiB_Skill05_008</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_009.png</f>
+			<f>TobiB_Skill05_009</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_010.png</f>
+			<f>TobiB_Skill05_010</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_011.png</f>
+			<f>TobiB_Skill05_011</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_012.png</f>
+			<f>TobiB_Skill05_012</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_013.png</f>
+			<f>TobiB_Skill05_013</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_014.png</f>
+			<f>TobiB_Skill05_014</f>
 			<e type="setDelay">-7</e>
-			<f>TobiB_Skill05_015.png</f>
+			<f>TobiB_Skill05_015</f>
 			<e type="setAttackBox">b_hit</e>
-			<f>TobiB_Skill05_016.png</f>
+			<f>TobiB_Skill05_016</f>
 			<e type="setAttackBox">c_hit</e>
-			<f>TobiB_Skill05_017.png</f>
+			<f>TobiB_Skill05_017</f>
 			<e type="setAttackBox">c_hit</e>
-			<f>TobiB_Skill05_018.png</f>
+			<f>TobiB_Skill05_018</f>
 			<e type="setAttackBox">c_hit</e>
-			<f>TobiB_Skill05_019.png</f>
+			<f>TobiB_Skill05_019</f>
 			<e type="setAttackBox">c_hit</e>
-			<f>TobiB_Skill05_020.png</f>
-			<f>TobiB_Skill05_021.png</f>
-			<f>TobiB_Skill05_022.png</f>
-			<f>TobiB_Skill05_023.png</f>
-			<f>TobiB_Skill05_024.png</f>
-			<f>TobiB_Skill05_025.png</f>
+			<f>TobiB_Skill05_020</f>
+			<f>TobiB_Skill05_021</f>
+			<f>TobiB_Skill05_022</f>
+			<f>TobiB_Skill05_023</f>
+			<f>TobiB_Skill05_024</f>
+			<f>TobiB_Skill05_025</f>
+			<e type="setCommand">reInvincible</e>
 		</frame>
 	</action>
 	<action name="skill11">
@@ -438,11 +435,13 @@
 			<p type="combatPoint">1920</p>
 		</data>
 		<frame>
-			<f>TobiB_Skill013_001</f>
+			<f>TobiB_Skill13_001</f>
+			<e type="setSkillEffect">sharingan2</e>
+			<e type="setSound">Audio/Effect/srg2.ogg</e>
 			<e type="setOugis">10</e>
-			<f>TobiB_Skill013_002</f>
-			<f>TobiB_Skill013_003</f>
-			<f>TobiB_Skill013_004</f>
+			<f>TobiB_Skill13_002</f>
+			<f>TobiB_Skill13_003</f>
+			<f>TobiB_Skill13_004</f>
 			<e type="setMonOnTrapped">FallinDown</e>
 		</frame>
 	</action>
