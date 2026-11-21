@@ -67,7 +67,7 @@
 			<f>Shenwei_006</f>
 			<f>Shenwei_001</f>
 			<e type="setAttackBox">s_hit</e>
-			<e type="setBanishMap">KamuiDimension, 2, 25, 8, 0, 1, 18</e>
+			<e type="setTrapMap">KamuiDimension, 2, 25, 8, 0, 1, 18</e>
 			<f>Shenwei_002</f>
 			<f>Shenwei_003</f>
 			<e type="setAttackBox">s_hit</e>
@@ -84,7 +84,7 @@
 			<e type="setAttackBox">s_hit</e>
 			<f>Shenwei_004</f>
 			<f>Shenwei_005</f>
-			<e type="setAttackBox">ct_hit</e>
+			<e type="setAttackBox">s_hit</e>
 			<f>Shenwei_006</f>
 			<f>Shenwei_007</f>
 			<f>Shenwei_008</f>

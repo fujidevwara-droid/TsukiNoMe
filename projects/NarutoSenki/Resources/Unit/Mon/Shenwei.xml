@@ -67,6 +67,7 @@
 			<f>Shenwei_Move_006</f>
 			<f>Shenwei_Move_001</f>
 			<e type="setAttackBox">s_hit</e>
+			<e type="setAttackBox">ct_hit</e>
 			<f>Shenwei_Move_002</f>
 			<f>Shenwei_Move_003</f>
 			<e type="setAttackBox">s_hit</e>
@@ -74,7 +75,6 @@
 			<f>Shenwei_Move_005</f>
 			<e type="setAttackBox">s_hit</e>
 			<f>Shenwei_Move_006</f>
-			<e type="setAttackBox">ct_hit</e>
 			<e type="setDetonation">0</e>
 		</frame>
 	</action>

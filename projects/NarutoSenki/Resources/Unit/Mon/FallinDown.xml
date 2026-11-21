@@ -86,61 +86,6 @@
 			<f>FallinDown_016</f>
 			<f>FallinDown_017</f>
 			<f>FallinDown_018</f>
-			<f>Unknown</f>
-			<f>FallinDown_001</f>
-			<f>FallinDown_002</f>
-			<f>FallinDown_003</f>
-			<f>FallinDown_004</f>
-			<f>FallinDown_005</f>
-			<e type="setAttackBox">f_hit</e>
-			<e type="setSound">Audio/Jugo/Effect/2rrr.mp3</e>
-			<f>FallinDown_006</f>
-			<e type="setAttackBox">a_hit</e>
-			<f>FallinDown_007</f>
-			<e type="setAttackBox">a_hit</e>
-			<f>FallinDown_008</f>
-			<e type="setAttackBox">a_hit</e>
-			<f>FallinDown_009</f>
-			<e type="setAttackBox">ac_hit</e>
-			<f>FallinDown_010</f>
-			<f>FallinDown_011</f>
-			<e type="setAttackBox">ac_hit</e>
-			<f>FallinDown_012</f>
-			<f>FallinDown_013</f>
-			<e type="setAttackBox">ac_hit</e>
-			<f>FallinDown_014</f>
-			<f>FallinDown_015</f>
-			<f>FallinDown_016</f>
-			<f>FallinDown_017</f>
-			<f>FallinDown_018</f>
-			<f>Unknown</f>
-			<f>FallinDown_001</f>
-			<f>FallinDown_002</f>
-			<f>FallinDown_003</f>
-			<f>FallinDown_004</f>
-			<f>FallinDown_005</f>
-			<e type="setAttackBox">f_hit</e>
-			<e type="setSound">Audio/Jugo/Effect/2rrr.mp3</e>
-			<f>FallinDown_006</f>
-			<e type="setAttackBox">a_hit</e>
-			<f>FallinDown_007</f>
-			<e type="setAttackBox">a_hit</e>
-			<f>FallinDown_008</f>
-			<e type="setAttackBox">a_hit</e>
-			<f>FallinDown_009</f>
-			<e type="setAttackBox">ac_hit</e>
-			<f>FallinDown_010</f>
-			<f>FallinDown_011</f>
-			<e type="setAttackBox">ac_hit</e>
-			<f>FallinDown_012</f>
-			<f>FallinDown_013</f>
-			<e type="setAttackBox">ac_hit</e>
-			<f>FallinDown_014</f>
-			<f>FallinDown_015</f>
-			<f>FallinDown_016</f>
-			<f>FallinDown_017</f>
-			<f>FallinDown_018</f>
-			<f>Unknown</f>
 			<e type="setDetonation">0</e>
 		</frame>
 	</action>
