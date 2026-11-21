@@ -100,6 +100,9 @@
 // victims together. If nothing was hit, nothing happens.
 // Towers, flogs, benched heroes and heroes an attack could not damage are never caught.
 //
+// Caught enemies are not just let go: as they come out they are launched away from the hero that
+// made the trap (AirHurt, then KnockDown, see stunReleased), so the caster has time to act.
+//
 // Everybody goes back when the time is up, or all caught enemies are gone (dead, or
 // respawned at their base), or the hero that made the trap is gone (dead). Each caught hero
 // goes back to where it was when it was caught, and the hero that made the trap to where it
@@ -118,6 +121,7 @@ public:
 	static constexpr float kSpitDistance = 96.0f;	// dynamic: the first caught enemy lands this far from the caster...
 	static constexpr float kSpitStep = 64.0f;		// ...and each further pair this much further out, alternating sides
 	static constexpr float kDefaultSeconds = 10.0f;
+	static constexpr float kReleaseFloat = 64.0f;	// the caught enemies are launched like an f_hit when they come out (see stunReleased)
 
 	// style 1: how long the screen takes to go black, stays black and comes back.
 	static constexpr float kFadeInSeconds = 0.27f;
@@ -1069,6 +1073,8 @@ private:
 			restored[entry.unit] = back;
 			if (entry.unit == game.currentPlayer)
 				humanWasTrapped = true;
+			if (entry.kind == Kind::Victim)
+				stunReleased(entry.unit);
 		}
 
 		// What is still on the trap map (summons, clones, projectiles) follows its owner back,
@@ -1105,6 +1111,29 @@ private:
 			else if (_style == 2)
 				game.startSwirl(0.0f, 0.05f, ScreenSwirl::kOutSeconds);
 		}
+	}
+
+	// A caught enemy that comes out of the trap map is thrown into the air (AirHurt, then it falls
+	// into KnockDown), away from the hero that made the trap: a fair stun that keeps the caster
+	// safe. Armored / sticking / dead enemies are left alone, floatUP refuses them.
+	void stunReleased(CharacterBase *victim)
+	{
+		if (!victim->getParent() || victim->getState() == State::DEAD)
+			return;
+
+		// Face the caster, so the launch (which goes behind the unit) sends it away from the caster.
+		if (_caster && _caster->getParent())
+		{
+			const bool faceLeft = _caster->getPositionX() < victim->getPositionX(); // flipped = facing left
+			if (victim->_isFlipped != faceLeft)
+			{
+				victim->setFlipX(faceLeft);
+				victim->_isFlipped = faceLeft;
+			}
+		}
+
+		victim->floatUP(kReleaseFloat, true);
+		victim->airHurt(); // does nothing unless floatUP got it into the air
 	}
 
 	void place(CharacterBase *unit, int stageId, const Vec2 &position)
