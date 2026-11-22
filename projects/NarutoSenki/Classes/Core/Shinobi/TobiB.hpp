@@ -47,7 +47,7 @@ protected: // Tobi2 (the Arcade boss) runs this code once it has turned into Tob
 
 			if (isFreeState())
 			{
-				if (_isCanOugis2 && !_isControlled && getGameLayer()->_isOugis2Game && _mainTarget->getDEF() < 5000 && !_mainTarget->_isArmored && _mainTarget->getState() != State::KNOCKDOWN && !_mainTarget->_isSticking)
+				if (_isCanOugis2 && !_isOugis2HeldInKamui && !_isControlled && getGameLayer()->_isOugis2Game && _mainTarget->getDEF() < 5000 && !_mainTarget->_isArmored && _mainTarget->getState() != State::KNOCKDOWN && !_mainTarget->_isSticking)
 				{
 					if (abs(sp.x) > 48 || abs(sp.y) > 16)
 					{
@@ -57,6 +57,7 @@ protected: // Tobi2 (the Arcade boss) runs this code once it has turned into Tob
 					}
 
 					changeSide(sp);
+					holdOugis2AfterCast();
 					attack(OUGIS2);
 					return;
 				}
@@ -344,6 +345,12 @@ protected: // Tobi2 (the Arcade boss) runs this code once it has turned into Tob
 
 		_isSwapActive = true;
 
+		// AI only: skill05 (ougis 2, skill12 while swapped) waits until he has been in the
+		// dimension for kOugis2KamuiDelay seconds (it prevents a bug right after going in).
+		_isOugis2HeldInKamui = true;
+		unschedule(schedule_selector(TobiB::releaseOugis2Hold));
+		scheduleOnce(schedule_selector(TobiB::releaseOugis2Hold), kOugis2KamuiDelay);
+
 		// --- Cache the base kit ---
 		_base1.action = getSkill1Action();
 		_base1.type = getSAttackType1();
@@ -414,6 +421,9 @@ protected: // Tobi2 (the Arcade boss) runs this code once it has turned into Tob
 
 		_isSwapActive = false;
 
+		unschedule(schedule_selector(TobiB::releaseOugis2Hold));
+		_isOugis2HeldInKamui = false;
+
 		if (_base1.action)
 			setSkill1Action(_base1.action);
 		setSAttackType1(_base1.type);
@@ -446,6 +456,25 @@ protected: // Tobi2 (the Arcade boss) runs this code once it has turned into Tob
 
 		updateSkillIcons(false);
 		refreshSkillCooldownButtons();
+	}
+
+	// AI: he just used skill05 outside the dimension (it spawns the trap). Until the trap has
+	// caught someone and he has been inside for kOugis2KamuiDelay seconds (applySkillSwap takes
+	// the hold over from here), skill05 stays off so he cannot cast it again in between. If the
+	// trap never starts (nothing was hit) the hold runs out after kOugis2PendingTimeout.
+	void holdOugis2AfterCast()
+	{
+		if (_isSwapActive)
+			return;
+
+		_isOugis2HeldInKamui = true;
+		unschedule(schedule_selector(TobiB::releaseOugis2Hold));
+		scheduleOnce(schedule_selector(TobiB::releaseOugis2Hold), kOugis2PendingTimeout);
+	}
+
+	void releaseOugis2Hold(float dt)
+	{
+		_isOugis2HeldInKamui = false;
 	}
 
 	// swapped = true: TobiB_skillN_1.png, false: TobiB_skillN.png (N = 1, 2, 4, 5)
@@ -490,6 +519,9 @@ private:
 	int _skill3HoldTicks = 0;
 	bool _isPhaseActive = false; // cBuff 17 is on
 	bool _isSwapActive = false;	 // cBuff 18 is on
+	bool _isOugis2HeldInKamui = false; // AI: skill05 not allowed yet, he just went into the dimension
+	static constexpr float kOugis2KamuiDelay = 2.0f; // seconds inside before the AI may use skill05
+	static constexpr float kOugis2PendingTimeout = 5.0f; // after casting it, wait this long at most for the trap to start
 
 	// What a replaced skill slot was before the swap.
 	struct SkillSlot

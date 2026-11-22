@@ -10,8 +10,10 @@ class Tobi2 : public TobiB
 {
 	bool isTobiBForm() { return getName() == HeroEnum::TobiB; }
 
-	// Turned into TobiB: start in the replaced-skill form (cBuff 18, skill1/2/4/5 -> skill09/10/11/12)
-	// and keep it, since nothing schedules its end.
+	// Turned into TobiB: he starts in the normal skill set. The replaced set (cBuff 18,
+	// skill1/2/4/5 -> skill09/10/11/12) comes only from his trap map: the trap's buffNumber
+	// gives it when he goes in and takes it away when he comes out (TrapSystem -> startCBuff /
+	// endCBuff -> changeAction), exactly like a normal TobiB.
 	void onSwitchedChar(const string &name) override
 	{
 		if (name != HeroEnum::TobiB)
@@ -24,8 +26,7 @@ class Tobi2 : public TobiB
 		setWalkSpeed(224);
 		_originSpeed = 224;
 
-		_skillChangeBuffValue = 18;
-		changeAction();
+		_skillChangeBuffValue = 0;
 	}
 
 	void perform() override
