@@ -2,6 +2,12 @@
 #include <cstdint>
 #include <memory>
 
+// The engine (CCStdC.h) defines _WINSOCKAPI_ before Windows.h and then includes WinSock2.h.
+// A plain <windows.h> that comes first (this header is included before any engine header)
+// pulls in the old winsock.h, and the two collide: sockaddr, fd_set, accept() ... redefined.
+#ifndef _WINSOCKAPI_
+#define _WINSOCKAPI_
+#endif
 #include <windows.h>
 #include <objidl.h>
 

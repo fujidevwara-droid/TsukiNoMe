@@ -6,6 +6,44 @@
 -- own require. Used by the locked-hero popup to cycle its requirement text.
 local scheduler = require(cc.PACKAGE_NAME .. '.scheduler')
 
+-- Plays Resources/Testing.mp4 when the layer opens: stretched over the whole
+-- screen, on top of everything (the locked-hero popup is the highest other node,
+-- at 5000) except the desktop return button, which sits just above it. It plays
+-- once and removes itself, which shows the layer again. It is stopped and freed
+-- with the layer when the scene is replaced.
+local INTRO_VIDEO = 'Testing.mp4'
+local INTRO_VIDEO_Z_ORDER = 10000
+local RETURN_BUTTON_Z_ORDER = INTRO_VIDEO_Z_ORDER + 1
+
+function SelectLayer:playIntroVideo()
+    local video = CCVideoSprite:create(INTRO_VIDEO)
+    if not video then
+        log('SelectLayer: cannot open %s: %s', INTRO_VIDEO,
+            CCVideoSprite:getLastCreateError())
+        return
+    end
+
+    local size = video:getContentSize()
+    video:setAnchorPoint(0, 0)
+    video:setPosition(0, 0)
+    video:setScaleX(display.width / size.width)
+    video:setScaleY(display.height / size.height)
+
+    video:registerFinishedHandler(function(v)
+        v:removeFromParentAndCleanup(true)
+        self._introVideo = nil
+    end)
+    video:registerErrorHandler(function(v, message)
+        log('SelectLayer: video error: %s', tostring(message))
+        v:removeFromParentAndCleanup(true)
+        self._introVideo = nil
+    end)
+
+    self:addChild(video, INTRO_VIDEO_Z_ORDER)
+    self._introVideo = video
+    video:play()
+end
+
 function SelectLayer:init()
     log('Initial SelectLayer...')
 
@@ -76,6 +114,9 @@ function SelectLayer:init()
     bgSprite:setAnchorPoint(0, 0)
     bgSprite:fullScreen()
     self:addChild(bgSprite, -5)
+
+    self._introVideo = nil
+    self:playIntroVideo()
 
     -- produce groud
     local gold_left = display.newSprite('#gold_left.png', 0, 20)
@@ -300,7 +341,7 @@ function SelectLayer:init()
         local menu3 = ui.newMenu({skill_btn})
         menu3:setAnchorPoint(0, 0)
         menu3:setPosition(width - 35, 135)
-        self:addChild(menu3, 5)
+        self:addChild(menu3, RETURN_BUTTON_Z_ORDER)
     end
 
     if save.isBGM() then audio.playMusic(ns.music.SELECT_MUSIC, true) end

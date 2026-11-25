@@ -84,6 +84,23 @@ public:
 	std::function<void()> onSeekDone;
 	std::function<void(const std::string &)> onError;
 
+	// Lua. The same three events for a Lua function (a LUA_FUNCTION handler, which is
+	// what tolua++ hands over for a Lua function argument):
+	//
+	//     video:registerFinishedHandler(function(video) video:removeFromParentAndCleanup(true) end)
+	//     video:registerSeekDoneHandler(function(video) end)
+	//     video:registerErrorHandler(function(video, message) print(message) end)
+	//
+	// A handler is installed through onFinished / onSeekDone / onError, so it replaces what
+	// was set there (and the other way round). Registering again replaces the previous
+	// handler of that event; unregisterLuaHandlers() clears all three. The video is kept
+	// alive until the end of the frame when a handler removes it from its parent. The
+	// handlers are also released by cleanup() and the destructor.
+	void registerFinishedHandler(int handler);
+	void registerSeekDoneHandler(int handler);
+	void registerErrorHandler(int handler);
+	void unregisterLuaHandlers();
+
 	// App lifecycle. Every video that is playing is held paused while the app is in the
 	// background, while it is not in a running scene (removed without cleanup, or its scene
 	// is not the running one), while the window has lost focus (Windows) and while the GL
@@ -128,6 +145,11 @@ private:
 	static void applyFocus();
 
 	VideoPlayback _playback; // what play(), pause(), ... mean, and the lifecycle rules
+
+	// Lua function references (0 = none), see registerFinishedHandler()
+	int _luaFinishedHandler = 0;
+	int _luaSeekDoneHandler = 0;
+	int _luaErrorHandler = 0;
 
 	// uniform locations of the program in use
 	CCGLProgram *_program = nullptr;

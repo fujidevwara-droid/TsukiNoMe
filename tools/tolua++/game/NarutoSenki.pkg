@@ -16,6 +16,8 @@ $#include "PauseLayer.h"
 $#include "SelectLayer.h"
 $#include "StartMenu.h"
 
+$#include "Video/CCVideoSprite.h"
+
 $pfile "game/CharacterBase.pkg"
 
 /* ------- UI Layer ------- */
@@ -148,4 +150,38 @@ public:
 
     bool isInverted() const;
     void setInverted(bool bInverted);
+};
+
+/* Video/CCVideoSprite.h */
+class CCVideoSprite : public CCSprite {
+public:
+	// nil when the video cannot be opened, getLastCreateError() says why
+	static CCVideoSprite *create(const char *path);
+	static string getLastCreateError();
+
+	void play();
+	void pause();
+	void resume();
+
+	// milliseconds (int64_t in C++, a Lua number here)
+	void seekTo(double milliseconds);
+	double getCurrentTimeMs() const;
+	double getDurationMs() const;
+	bool isPlaying() const;
+	bool isSeeking() const;
+
+	void setLoop(bool loop);
+	bool isLoop() const;
+
+	void setVolume(float volume);
+	float getVolume() const;
+
+	// function(video), function(video), function(video, message)
+	void registerFinishedHandler(LUA_FUNCTION handler);
+	void registerSeekDoneHandler(LUA_FUNCTION handler);
+	void registerErrorHandler(LUA_FUNCTION handler);
+	void unregisterLuaHandlers();
+
+	static void setPauseOnFocusLoss(bool pause);
+	static bool isPauseOnFocusLoss();
 };

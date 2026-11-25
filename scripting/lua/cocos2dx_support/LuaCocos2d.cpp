@@ -103,6 +103,7 @@ using namespace CocosDenshion;
 #include "PauseLayer.h"
 #include "SelectLayer.h"
 #include "StartMenu.h"
+#include "Video/CCVideoSprite.h"
 
 /* function to release collected object via destructor */
 #ifdef __cplusplus
@@ -538,6 +539,7 @@ static void tolua_reg_types (lua_State* tolua_S)
  tolua_usertype(tolua_S,"CCObject");
  tolua_usertype(tolua_S,"CCEaseBackInOut");
  tolua_usertype(tolua_S,"CCAtlasNode");
+ tolua_usertype(tolua_S,"CCVideoSprite");
  tolua_usertype(tolua_S,"CCEaseBackOut");
  tolua_usertype(tolua_S,"CCSize");
  tolua_usertype(tolua_S,"CCInteger");
@@ -68992,6 +68994,635 @@ static int tolua_Cocos2d_CCClippingNode_setInverted00(lua_State* tolua_S)
 }
 #endif //#ifndef TOLUA_DISABLE
 
+/* method: create of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_create00
+static int tolua_Cocos2d_CCVideoSprite_create00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"CCVideoSprite",0,&tolua_err) ||
+     !tolua_isstring(tolua_S,2,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const char* path = ((const char*)  tolua_tostring(tolua_S,2,0));
+  {
+   CCVideoSprite* tolua_ret = (CCVideoSprite*)  CCVideoSprite::create(path);
+    tolua_pushusertype(tolua_S,(void*)tolua_ret,"CCVideoSprite");
+  }
+ }
+ return 1;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'create'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: getLastCreateError of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_getLastCreateError00
+static int tolua_Cocos2d_CCVideoSprite_getLastCreateError00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"CCVideoSprite",0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,2,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  {
+   string tolua_ret = (string)  CCVideoSprite::getLastCreateError();
+   tolua_pushcppstring(tolua_S,(const char*)tolua_ret);
+  }
+ }
+ return 1;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'getLastCreateError'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: play of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_play00
+static int tolua_Cocos2d_CCVideoSprite_play00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertype(tolua_S,1,"CCVideoSprite",0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,2,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  CCVideoSprite* self = (CCVideoSprite*)  tolua_tousertype(tolua_S,1,0);
+#ifndef TOLUA_RELEASE
+  if (!self) tolua_error(tolua_S,"invalid 'self' in function 'play'", NULL);
+#endif
+  {
+   self->play();
+  }
+ }
+ return 0;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'play'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: pause of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_pause00
+static int tolua_Cocos2d_CCVideoSprite_pause00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertype(tolua_S,1,"CCVideoSprite",0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,2,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  CCVideoSprite* self = (CCVideoSprite*)  tolua_tousertype(tolua_S,1,0);
+#ifndef TOLUA_RELEASE
+  if (!self) tolua_error(tolua_S,"invalid 'self' in function 'pause'", NULL);
+#endif
+  {
+   self->pause();
+  }
+ }
+ return 0;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'pause'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: resume of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_resume00
+static int tolua_Cocos2d_CCVideoSprite_resume00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertype(tolua_S,1,"CCVideoSprite",0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,2,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  CCVideoSprite* self = (CCVideoSprite*)  tolua_tousertype(tolua_S,1,0);
+#ifndef TOLUA_RELEASE
+  if (!self) tolua_error(tolua_S,"invalid 'self' in function 'resume'", NULL);
+#endif
+  {
+   self->resume();
+  }
+ }
+ return 0;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'resume'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: seekTo of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_seekTo00
+static int tolua_Cocos2d_CCVideoSprite_seekTo00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertype(tolua_S,1,"CCVideoSprite",0,&tolua_err) ||
+     !tolua_isnumber(tolua_S,2,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  CCVideoSprite* self = (CCVideoSprite*)  tolua_tousertype(tolua_S,1,0);
+  double milliseconds = ((double)  tolua_tonumber(tolua_S,2,0));
+#ifndef TOLUA_RELEASE
+  if (!self) tolua_error(tolua_S,"invalid 'self' in function 'seekTo'", NULL);
+#endif
+  {
+   self->seekTo(milliseconds);
+  }
+ }
+ return 0;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'seekTo'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: getCurrentTimeMs of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_getCurrentTimeMs00
+static int tolua_Cocos2d_CCVideoSprite_getCurrentTimeMs00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertype(tolua_S,1,"const CCVideoSprite",0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,2,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const CCVideoSprite* self = (const CCVideoSprite*)  tolua_tousertype(tolua_S,1,0);
+#ifndef TOLUA_RELEASE
+  if (!self) tolua_error(tolua_S,"invalid 'self' in function 'getCurrentTimeMs'", NULL);
+#endif
+  {
+   double tolua_ret = (double)  self->getCurrentTimeMs();
+   tolua_pushnumber(tolua_S,(lua_Number)tolua_ret);
+  }
+ }
+ return 1;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'getCurrentTimeMs'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: getDurationMs of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_getDurationMs00
+static int tolua_Cocos2d_CCVideoSprite_getDurationMs00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertype(tolua_S,1,"const CCVideoSprite",0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,2,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const CCVideoSprite* self = (const CCVideoSprite*)  tolua_tousertype(tolua_S,1,0);
+#ifndef TOLUA_RELEASE
+  if (!self) tolua_error(tolua_S,"invalid 'self' in function 'getDurationMs'", NULL);
+#endif
+  {
+   double tolua_ret = (double)  self->getDurationMs();
+   tolua_pushnumber(tolua_S,(lua_Number)tolua_ret);
+  }
+ }
+ return 1;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'getDurationMs'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: isPlaying of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_isPlaying00
+static int tolua_Cocos2d_CCVideoSprite_isPlaying00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertype(tolua_S,1,"const CCVideoSprite",0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,2,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const CCVideoSprite* self = (const CCVideoSprite*)  tolua_tousertype(tolua_S,1,0);
+#ifndef TOLUA_RELEASE
+  if (!self) tolua_error(tolua_S,"invalid 'self' in function 'isPlaying'", NULL);
+#endif
+  {
+   bool tolua_ret = (bool)  self->isPlaying();
+   tolua_pushboolean(tolua_S,(bool)tolua_ret);
+  }
+ }
+ return 1;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'isPlaying'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: isSeeking of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_isSeeking00
+static int tolua_Cocos2d_CCVideoSprite_isSeeking00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertype(tolua_S,1,"const CCVideoSprite",0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,2,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const CCVideoSprite* self = (const CCVideoSprite*)  tolua_tousertype(tolua_S,1,0);
+#ifndef TOLUA_RELEASE
+  if (!self) tolua_error(tolua_S,"invalid 'self' in function 'isSeeking'", NULL);
+#endif
+  {
+   bool tolua_ret = (bool)  self->isSeeking();
+   tolua_pushboolean(tolua_S,(bool)tolua_ret);
+  }
+ }
+ return 1;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'isSeeking'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: setLoop of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_setLoop00
+static int tolua_Cocos2d_CCVideoSprite_setLoop00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertype(tolua_S,1,"CCVideoSprite",0,&tolua_err) ||
+     !tolua_isboolean(tolua_S,2,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  CCVideoSprite* self = (CCVideoSprite*)  tolua_tousertype(tolua_S,1,0);
+  bool loop = ((bool)  tolua_toboolean(tolua_S,2,0));
+#ifndef TOLUA_RELEASE
+  if (!self) tolua_error(tolua_S,"invalid 'self' in function 'setLoop'", NULL);
+#endif
+  {
+   self->setLoop(loop);
+  }
+ }
+ return 0;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'setLoop'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: isLoop of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_isLoop00
+static int tolua_Cocos2d_CCVideoSprite_isLoop00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertype(tolua_S,1,"const CCVideoSprite",0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,2,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const CCVideoSprite* self = (const CCVideoSprite*)  tolua_tousertype(tolua_S,1,0);
+#ifndef TOLUA_RELEASE
+  if (!self) tolua_error(tolua_S,"invalid 'self' in function 'isLoop'", NULL);
+#endif
+  {
+   bool tolua_ret = (bool)  self->isLoop();
+   tolua_pushboolean(tolua_S,(bool)tolua_ret);
+  }
+ }
+ return 1;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'isLoop'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: setVolume of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_setVolume00
+static int tolua_Cocos2d_CCVideoSprite_setVolume00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertype(tolua_S,1,"CCVideoSprite",0,&tolua_err) ||
+     !tolua_isnumber(tolua_S,2,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  CCVideoSprite* self = (CCVideoSprite*)  tolua_tousertype(tolua_S,1,0);
+  float volume = ((float)  tolua_tonumber(tolua_S,2,0));
+#ifndef TOLUA_RELEASE
+  if (!self) tolua_error(tolua_S,"invalid 'self' in function 'setVolume'", NULL);
+#endif
+  {
+   self->setVolume(volume);
+  }
+ }
+ return 0;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'setVolume'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: getVolume of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_getVolume00
+static int tolua_Cocos2d_CCVideoSprite_getVolume00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertype(tolua_S,1,"const CCVideoSprite",0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,2,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  const CCVideoSprite* self = (const CCVideoSprite*)  tolua_tousertype(tolua_S,1,0);
+#ifndef TOLUA_RELEASE
+  if (!self) tolua_error(tolua_S,"invalid 'self' in function 'getVolume'", NULL);
+#endif
+  {
+   float tolua_ret = (float)  self->getVolume();
+   tolua_pushnumber(tolua_S,(lua_Number)tolua_ret);
+  }
+ }
+ return 1;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'getVolume'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: registerFinishedHandler of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_registerFinishedHandler00
+static int tolua_Cocos2d_CCVideoSprite_registerFinishedHandler00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertype(tolua_S,1,"CCVideoSprite",0,&tolua_err) ||
+     (tolua_isvaluenil(tolua_S,2,&tolua_err) || !toluafix_isfunction(tolua_S,2,"LUA_FUNCTION",0,&tolua_err)) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  CCVideoSprite* self = (CCVideoSprite*)  tolua_tousertype(tolua_S,1,0);
+  LUA_FUNCTION handler = (  toluafix_ref_function(tolua_S,2,0));
+#ifndef TOLUA_RELEASE
+  if (!self) tolua_error(tolua_S,"invalid 'self' in function 'registerFinishedHandler'", NULL);
+#endif
+  {
+   self->registerFinishedHandler(handler);
+  }
+ }
+ return 0;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'registerFinishedHandler'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: registerSeekDoneHandler of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_registerSeekDoneHandler00
+static int tolua_Cocos2d_CCVideoSprite_registerSeekDoneHandler00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertype(tolua_S,1,"CCVideoSprite",0,&tolua_err) ||
+     (tolua_isvaluenil(tolua_S,2,&tolua_err) || !toluafix_isfunction(tolua_S,2,"LUA_FUNCTION",0,&tolua_err)) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  CCVideoSprite* self = (CCVideoSprite*)  tolua_tousertype(tolua_S,1,0);
+  LUA_FUNCTION handler = (  toluafix_ref_function(tolua_S,2,0));
+#ifndef TOLUA_RELEASE
+  if (!self) tolua_error(tolua_S,"invalid 'self' in function 'registerSeekDoneHandler'", NULL);
+#endif
+  {
+   self->registerSeekDoneHandler(handler);
+  }
+ }
+ return 0;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'registerSeekDoneHandler'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: registerErrorHandler of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_registerErrorHandler00
+static int tolua_Cocos2d_CCVideoSprite_registerErrorHandler00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertype(tolua_S,1,"CCVideoSprite",0,&tolua_err) ||
+     (tolua_isvaluenil(tolua_S,2,&tolua_err) || !toluafix_isfunction(tolua_S,2,"LUA_FUNCTION",0,&tolua_err)) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  CCVideoSprite* self = (CCVideoSprite*)  tolua_tousertype(tolua_S,1,0);
+  LUA_FUNCTION handler = (  toluafix_ref_function(tolua_S,2,0));
+#ifndef TOLUA_RELEASE
+  if (!self) tolua_error(tolua_S,"invalid 'self' in function 'registerErrorHandler'", NULL);
+#endif
+  {
+   self->registerErrorHandler(handler);
+  }
+ }
+ return 0;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'registerErrorHandler'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: unregisterLuaHandlers of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_unregisterLuaHandlers00
+static int tolua_Cocos2d_CCVideoSprite_unregisterLuaHandlers00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertype(tolua_S,1,"CCVideoSprite",0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,2,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  CCVideoSprite* self = (CCVideoSprite*)  tolua_tousertype(tolua_S,1,0);
+#ifndef TOLUA_RELEASE
+  if (!self) tolua_error(tolua_S,"invalid 'self' in function 'unregisterLuaHandlers'", NULL);
+#endif
+  {
+   self->unregisterLuaHandlers();
+  }
+ }
+ return 0;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'unregisterLuaHandlers'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: setPauseOnFocusLoss of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_setPauseOnFocusLoss00
+static int tolua_Cocos2d_CCVideoSprite_setPauseOnFocusLoss00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"CCVideoSprite",0,&tolua_err) ||
+     !tolua_isboolean(tolua_S,2,0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,3,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  bool pause = ((bool)  tolua_toboolean(tolua_S,2,0));
+  {
+   CCVideoSprite::setPauseOnFocusLoss(pause);
+  }
+ }
+ return 0;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'setPauseOnFocusLoss'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
+/* method: isPauseOnFocusLoss of class  CCVideoSprite */
+#ifndef TOLUA_DISABLE_tolua_Cocos2d_CCVideoSprite_isPauseOnFocusLoss00
+static int tolua_Cocos2d_CCVideoSprite_isPauseOnFocusLoss00(lua_State* tolua_S)
+{
+#ifndef TOLUA_RELEASE
+ tolua_Error tolua_err;
+ if (
+     !tolua_isusertable(tolua_S,1,"CCVideoSprite",0,&tolua_err) ||
+     !tolua_isnoobj(tolua_S,2,&tolua_err)
+ )
+  goto tolua_lerror;
+ else
+#endif
+ {
+  {
+   bool tolua_ret = (bool)  CCVideoSprite::isPauseOnFocusLoss();
+   tolua_pushboolean(tolua_S,(bool)tolua_ret);
+  }
+ }
+ return 1;
+#ifndef TOLUA_RELEASE
+ tolua_lerror:
+ tolua_error(tolua_S,"#ferror in function 'isPauseOnFocusLoss'.",&tolua_err);
+ return 0;
+#endif
+}
+#endif //#ifndef TOLUA_DISABLE
+
 /* Open function */
 TOLUA_API int tolua_Cocos2d_open (lua_State* tolua_S)
 {
@@ -72568,6 +73199,29 @@ TOLUA_API int tolua_Cocos2d_open (lua_State* tolua_S)
    tolua_function(tolua_S,"setAlphaThreshold",tolua_Cocos2d_CCClippingNode_setAlphaThreshold00);
    tolua_function(tolua_S,"isInverted",tolua_Cocos2d_CCClippingNode_isInverted00);
    tolua_function(tolua_S,"setInverted",tolua_Cocos2d_CCClippingNode_setInverted00);
+  tolua_endmodule(tolua_S);
+  tolua_cclass(tolua_S,"CCVideoSprite","CCVideoSprite","CCSprite",NULL);
+  tolua_beginmodule(tolua_S,"CCVideoSprite");
+   tolua_function(tolua_S,"create",tolua_Cocos2d_CCVideoSprite_create00);
+   tolua_function(tolua_S,"getLastCreateError",tolua_Cocos2d_CCVideoSprite_getLastCreateError00);
+   tolua_function(tolua_S,"play",tolua_Cocos2d_CCVideoSprite_play00);
+   tolua_function(tolua_S,"pause",tolua_Cocos2d_CCVideoSprite_pause00);
+   tolua_function(tolua_S,"resume",tolua_Cocos2d_CCVideoSprite_resume00);
+   tolua_function(tolua_S,"seekTo",tolua_Cocos2d_CCVideoSprite_seekTo00);
+   tolua_function(tolua_S,"getCurrentTimeMs",tolua_Cocos2d_CCVideoSprite_getCurrentTimeMs00);
+   tolua_function(tolua_S,"getDurationMs",tolua_Cocos2d_CCVideoSprite_getDurationMs00);
+   tolua_function(tolua_S,"isPlaying",tolua_Cocos2d_CCVideoSprite_isPlaying00);
+   tolua_function(tolua_S,"isSeeking",tolua_Cocos2d_CCVideoSprite_isSeeking00);
+   tolua_function(tolua_S,"setLoop",tolua_Cocos2d_CCVideoSprite_setLoop00);
+   tolua_function(tolua_S,"isLoop",tolua_Cocos2d_CCVideoSprite_isLoop00);
+   tolua_function(tolua_S,"setVolume",tolua_Cocos2d_CCVideoSprite_setVolume00);
+   tolua_function(tolua_S,"getVolume",tolua_Cocos2d_CCVideoSprite_getVolume00);
+   tolua_function(tolua_S,"registerFinishedHandler",tolua_Cocos2d_CCVideoSprite_registerFinishedHandler00);
+   tolua_function(tolua_S,"registerSeekDoneHandler",tolua_Cocos2d_CCVideoSprite_registerSeekDoneHandler00);
+   tolua_function(tolua_S,"registerErrorHandler",tolua_Cocos2d_CCVideoSprite_registerErrorHandler00);
+   tolua_function(tolua_S,"unregisterLuaHandlers",tolua_Cocos2d_CCVideoSprite_unregisterLuaHandlers00);
+   tolua_function(tolua_S,"setPauseOnFocusLoss",tolua_Cocos2d_CCVideoSprite_setPauseOnFocusLoss00);
+   tolua_function(tolua_S,"isPauseOnFocusLoss",tolua_Cocos2d_CCVideoSprite_isPauseOnFocusLoss00);
   tolua_endmodule(tolua_S);
  tolua_endmodule(tolua_S);
  return 1;

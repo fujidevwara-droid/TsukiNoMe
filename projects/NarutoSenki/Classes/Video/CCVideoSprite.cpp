@@ -6,6 +6,8 @@
 #include "CCVideoSprite.h"
 #include "VideoShader.hpp"
 
+#include "CCLuaEngine.h"
+
 #ifndef GL_TEXTURE_EXTERNAL_OES
 #define GL_TEXTURE_EXTERNAL_OES 0x8D65
 #endif
@@ -23,6 +25,39 @@ namespace
 	{
 		static std::string error;
 		return error;
+	}
+
+	// Calls a Lua handler as function(video) or, with a message, function(video, message).
+	// The video stays alive until the end of the frame, so the handler may remove it.
+	void callLuaHandler(int handler, CCVideoSprite *video, const std::string *message)
+	{
+		CCLuaEngine *engine = CCLuaEngine::defaultEngine();
+		if (!engine || !handler)
+			return;
+
+		CCLuaStack *stack = engine->getLuaStack();
+		video->retain();
+		video->autorelease();
+
+		stack->pushCCObject(video, "CCVideoSprite");
+		int argCount = 1;
+		if (message)
+		{
+			stack->pushString(message->c_str(), static_cast<int>(message->size()));
+			argCount = 2;
+		}
+		stack->executeFunctionByHandler(handler, argCount);
+		stack->clean();
+	}
+
+	void releaseLuaHandler(int &handler)
+	{
+		if (!handler)
+			return;
+
+		if (CCScriptEngineProtocol *engine = CCScriptEngineManager::sharedManager()->getScriptEngine())
+			engine->removeScriptHandler(handler);
+		handler = 0;
 	}
 
 	// What the lifecycle hooks last said, for videos that are created afterwards.
@@ -87,6 +122,7 @@ CCVideoSprite::~CCVideoSprite()
 {
 	unregisterVideo();
 	_playback.release();
+	unregisterLuaHandlers();
 }
 
 CCVideoSprite *CCVideoSprite::create(const char *path)
@@ -187,8 +223,60 @@ void CCVideoSprite::cleanup(void)
 	onFinished = nullptr;
 	onSeekDone = nullptr;
 	onError = nullptr;
+	unregisterLuaHandlers();
 
 	CCSprite::cleanup();
+}
+
+// ---------------------------------------------------------------------------
+// Lua handlers
+// ---------------------------------------------------------------------------
+
+void CCVideoSprite::registerFinishedHandler(int handler)
+{
+	releaseLuaHandler(_luaFinishedHandler);
+	onFinished = nullptr;
+	if (!handler)
+		return;
+
+	_luaFinishedHandler = handler;
+	onFinished = [this, handler]() { callLuaHandler(handler, this, nullptr); };
+}
+
+void CCVideoSprite::registerSeekDoneHandler(int handler)
+{
+	releaseLuaHandler(_luaSeekDoneHandler);
+	onSeekDone = nullptr;
+	if (!handler)
+		return;
+
+	_luaSeekDoneHandler = handler;
+	onSeekDone = [this, handler]() { callLuaHandler(handler, this, nullptr); };
+}
+
+void CCVideoSprite::registerErrorHandler(int handler)
+{
+	releaseLuaHandler(_luaErrorHandler);
+	onError = nullptr;
+	if (!handler)
+		return;
+
+	_luaErrorHandler = handler;
+	onError = [this, handler](const std::string &message) { callLuaHandler(handler, this, &message); };
+}
+
+void CCVideoSprite::unregisterLuaHandlers()
+{
+	if (_luaFinishedHandler)
+		onFinished = nullptr;
+	if (_luaSeekDoneHandler)
+		onSeekDone = nullptr;
+	if (_luaErrorHandler)
+		onError = nullptr;
+
+	releaseLuaHandler(_luaFinishedHandler);
+	releaseLuaHandler(_luaSeekDoneHandler);
+	releaseLuaHandler(_luaErrorHandler);
 }
 
 // ---------------------------------------------------------------------------

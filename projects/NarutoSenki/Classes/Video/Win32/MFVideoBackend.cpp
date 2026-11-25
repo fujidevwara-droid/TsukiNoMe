@@ -402,12 +402,13 @@ IPipelineSource::Read MFPipelineSource::readVideo(int64_t &ptsHns, int64_t &dura
 			{
 				UINT32 width = 0;
 				UINT32 height = 0;
-				MFGetAttributeSize(changed, MF_MT_FRAME_SIZE, &width, &height);
-				if ((int)width != _info.width || (int)height != _info.height)
+				// A type without a size says nothing about the size, so it is not a change.
+				const bool hasSize = SUCCEEDED(MFGetAttributeSize(changed, MF_MT_FRAME_SIZE, &width, &height)) && width > 0 && height > 0;
+				if (hasSize && ((int)width != _info.width || (int)height != _info.height))
 				{
 					changed->Release();
 					safeRelease(sample);
-					error = "the size of the video changes while it plays, which is not supported";
+					error = "the size of the video changes while it plays, which is not supported (" + std::to_string(_info.width) + "x" + std::to_string(_info.height) + " -> " + std::to_string(width) + "x" + std::to_string(height) + ")";
 					return Read::Failed;
 				}
 
