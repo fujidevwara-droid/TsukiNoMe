@@ -1,0 +1,3 @@
+package android.annotation;
+import java.lang.annotation.*;
+@Retention(RetentionPolicy.CLASS) public @interface TargetApi { int value(); }

@@ -26,6 +26,11 @@ LOCAL_SRC_FILES := main.cpp \
     $(COCOS_ROOT)/projects/NarutoSenki/Classes/StartMenu.cpp \
     $(COCOS_ROOT)/projects/NarutoSenki/Classes/MyUtils/CCScrewLayer.cpp \
     $(COCOS_ROOT)/projects/NarutoSenki/Classes/MyUtils/CCShake.cpp \
+    $(COCOS_ROOT)/projects/NarutoSenki/Classes/Video/Android/AndroidVideoBackend.cpp \
+    $(COCOS_ROOT)/projects/NarutoSenki/Classes/Video/CCVideoSprite.cpp \
+    $(COCOS_ROOT)/projects/NarutoSenki/Classes/Video/NullVideoBackend.cpp \
+    $(COCOS_ROOT)/projects/NarutoSenki/Classes/Video/VideoBackendFactory.cpp \
+    $(COCOS_ROOT)/projects/NarutoSenki/Classes/Video/VideoPlayback.cpp \
     $(COCOS_ROOT)/projects/NarutoSenki/Classes/MyUtils/CCStrokeLabel.cpp \
     $(COCOS_ROOT)/projects/NarutoSenki/Classes/MyUtils/KTools.cpp \
     $(COCOS_ROOT)/projects/NarutoSenki/Classes/MyUtils/MD5ChecksumDefines.cpp \

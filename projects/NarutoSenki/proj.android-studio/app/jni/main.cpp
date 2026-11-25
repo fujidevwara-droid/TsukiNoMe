@@ -2,6 +2,7 @@
 #include "cocos2d.h"
 #include "CCEventType.h"
 #include "platform/android/jni/JniHelper.h"
+#include "Video/CCVideoSprite.h"
 #include <jni.h>
 #include <android/log.h>
 
@@ -36,6 +37,12 @@ extern "C"
 			CCShaderCache::sharedShaderCache()->reloadDefaultShaders();
 			ccDrawInit();
 			CCTextureCache::reloadAllTextures();
+
+			// The GL context is a new one: videos give up their old texture and decoder surface
+			// and set up new ones where they were.
+			CCVideoSprite::onGLContextLost();
+			CCVideoSprite::onGLContextRestored();
+
 			CCNotificationCenter::sharedNotificationCenter()->postNotification(EVENT_COME_TO_FOREGROUND, NULL);
 			CCDirector::sharedDirector()->setGLDefaultValues();
 		}

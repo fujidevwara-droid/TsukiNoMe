@@ -3,6 +3,10 @@
 #include "script_support/CCScriptSupport.h"
 
 #include "Systems/Initializer.hpp"
+#if (CC_TARGET_PLATFORM == CC_PLATFORM_WIN32 || CC_TARGET_PLATFORM == CC_PLATFORM_ANDROID)
+#include "Video/CCVideoSprite.h"
+#define NS_HAS_VIDEO_SPRITE 1
+#endif
 
 #if (CC_TARGET_PLATFORM == CC_PLATFORM_MAC)
 #include <CoreFoundation/CoreFoundation.h>
@@ -175,6 +179,10 @@ bool AppDelegate::applicationDidFinishLaunching()
 
 void AppDelegate::applicationDidEnterBackground()
 {
+#ifdef NS_HAS_VIDEO_SPRITE
+	CCVideoSprite::onAppPause();
+#endif
+
 	Director::sharedDirector()->stopAnimation();
 
 	SimpleAudioEngine::sharedEngine()->pauseBackgroundMusic();
@@ -182,6 +190,10 @@ void AppDelegate::applicationDidEnterBackground()
 
 void AppDelegate::applicationWillEnterForeground()
 {
+#ifdef NS_HAS_VIDEO_SPRITE
+	CCVideoSprite::onAppResume();
+#endif
+
 	Director::sharedDirector()->startAnimation();
 
 	SimpleAudioEngine::sharedEngine()->resumeBackgroundMusic();

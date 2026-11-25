@@ -31,6 +31,12 @@
     <Filter Include="Classes\Systems">
       <UniqueIdentifier>{fb6815a4-bfd3-43f5-acd1-191a2b07812b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Classes\Video">
+      <UniqueIdentifier>{640deb69-ca31-4fbe-be52-ef85b85b7ca2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Classes\Video\Win32">
+      <UniqueIdentifier>{a355dd0e-7b54-4b6c-a1a3-3710b877e542}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Classes\Enums">
       <UniqueIdentifier>{82bb5e26-27c3-40ed-a08d-93cb1b60ba32}</UniqueIdentifier>
     </Filter>
@@ -68,6 +74,30 @@
     </ClCompile>
     <ClCompile Include="..\Classes\Effect.cpp">
       <Filter>Classes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\Video\CCVideoSprite.cpp">
+      <Filter>Classes\Video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\Video\NullVideoBackend.cpp">
+      <Filter>Classes\Video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\Video\PipelineBackend.cpp">
+      <Filter>Classes\Video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\Video\VideoBackendFactory.cpp">
+      <Filter>Classes\Video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\Video\VideoPlayback.cpp">
+      <Filter>Classes\Video</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\Video\Win32\ALPcmSink.cpp">
+      <Filter>Classes\Video\Win32</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\Video\Win32\MFRangeStream.cpp">
+      <Filter>Classes\Video\Win32</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Classes\Video\Win32\MFVideoBackend.cpp">
+      <Filter>Classes\Video\Win32</Filter>
     </ClCompile>
     <ClCompile Include="..\Classes\MyUtils\CCShake.cpp">
       <Filter>Utils</Filter>
@@ -259,6 +289,33 @@
     </ClInclude>
     <ClInclude Include="..\Classes\Systems\CameraZoom.hpp">
       <Filter>Classes\Systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\Video\CCVideoSprite.h">
+      <Filter>Classes\Video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\Video\IVideoBackend.h">
+      <Filter>Classes\Video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\Video\NullVideoBackend.h">
+      <Filter>Classes\Video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\Video\PipelineBackend.h">
+      <Filter>Classes\Video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\Video\VideoPlayback.h">
+      <Filter>Classes\Video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\Video\VideoShader.hpp">
+      <Filter>Classes\Video</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\Video\Win32\ALPcmSink.h">
+      <Filter>Classes\Video\Win32</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\Video\Win32\MFRangeStream.h">
+      <Filter>Classes\Video\Win32</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Classes\Video\Win32\MFVideoBackend.h">
+      <Filter>Classes\Video\Win32</Filter>
     </ClInclude>
     <ClInclude Include="..\Classes\Systems\ScreenShake.hpp">
       <Filter>Classes\Systems</Filter>

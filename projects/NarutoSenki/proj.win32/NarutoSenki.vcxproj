@@ -74,7 +74,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\cocos2dx;$(ProjectDir)..\..\..\cocos2dx\include;$(ProjectDir)..\..\..\cocos2dx\kazmath\include;$(ProjectDir)..\..\..\cocos2dx\platform\win32;$(ProjectDir)..\..\..\cocos2dx\platform\third_party\win32;$(ProjectDir)..\..\..\cocos2dx\platform\third_party\win32\OGLES;$(ProjectDir)..\..\..\external\sqlite3\include;$(ProjectDir)..\..\..\external;$(ProjectDir)..\..\..\CocosDenshion\include;$(ProjectDir)..\..\..\extensions;..\Classes;..;$(ProjectDir)..\..\..\external\glfw3\include\win32;$(ProjectDir)..\..\..\external\toml;$(ProjectDir)..\..\..\scripting\lua\cocos2dx_support;$(ProjectDir)..\..\..\scripting\lua\luajit\include;$(ProjectDir)..\..\..\scripting\lua\tolua;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\cocos2dx;$(ProjectDir)..\..\..\cocos2dx\include;$(ProjectDir)..\..\..\cocos2dx\kazmath\include;$(ProjectDir)..\..\..\cocos2dx\platform\win32;$(ProjectDir)..\..\..\cocos2dx\platform\third_party\win32;$(ProjectDir)..\..\..\cocos2dx\platform\third_party\win32\OGLES;$(ProjectDir)..\..\..\cocos2dx\platform\third_party\win32\OpenalSoft;$(ProjectDir)..\..\..\external\sqlite3\include;$(ProjectDir)..\..\..\external;$(ProjectDir)..\..\..\CocosDenshion\include;$(ProjectDir)..\..\..\extensions;..\Classes;..;$(ProjectDir)..\..\..\external\glfw3\include\win32;$(ProjectDir)..\..\..\external\toml;$(ProjectDir)..\..\..\scripting\lua\cocos2dx_support;$(ProjectDir)..\..\..\scripting\lua\luajit\include;$(ProjectDir)..\..\..\scripting\lua\tolua;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;USE_WIN32_CONSOLE;_DEBUG;DEBUG=1;_WINDOWS;_USE_MATH_DEFINES;GL_GLEXT_PROTOTYPES;COCOS2D_DEBUG=1;_CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS;HAVE_STRUCT_TIMESPEC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -90,9 +90,9 @@
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>libExtensions.lib;libcocos2d.lib;libCocosDenshion.lib;opengl32.lib;glew32.lib;pthreadVCE2.lib;sqlite3.lib;glfw3.lib;liblua.lib;lua51.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>mfplat.lib;mfreadwrite.lib;mfuuid.lib;OpenAL32.lib;libExtensions.lib;libcocos2d.lib;libCocosDenshion.lib;opengl32.lib;glew32.lib;pthreadVCE2.lib;sqlite3.lib;glfw3.lib;liblua.lib;lua51.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).exe</OutputFile>
-      <AdditionalLibraryDirectories>$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(OutDir);$(ProjectDir)..\..\..\cocos2dx\platform\third_party\win32\libraries;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
@@ -117,7 +117,7 @@ xcopy /Y /Q "$(SolutionDir)$(Configuration).win32\*.exe" "$(SolutionDir)projects
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\cocos2dx;$(ProjectDir)..\..\..\cocos2dx\include;$(ProjectDir)..\..\..\cocos2dx\kazmath\include;$(ProjectDir)..\..\..\cocos2dx\platform\win32;$(ProjectDir)..\..\..\cocos2dx\platform\third_party\win32;$(ProjectDir)..\..\..\cocos2dx\platform\third_party\win32\OGLES;$(ProjectDir)..\..\..\external\sqlite3\include;$(ProjectDir)..\..\..\external;$(ProjectDir)..\..\..\CocosDenshion\include;$(ProjectDir)..\..\..\extensions;..\Classes;..;$(ProjectDir)..\..\..\external\glfw3\include\win32;$(ProjectDir)..\..\..\scripting\lua\cocos2dx_support;$(ProjectDir)..\..\..\scripting\lua\luajit\include;$(ProjectDir)..\..\..\scripting\lua\tolua;$(ProjectDir)..\..\..\scripting\lua\xxtea;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\cocos2dx;$(ProjectDir)..\..\..\cocos2dx\include;$(ProjectDir)..\..\..\cocos2dx\kazmath\include;$(ProjectDir)..\..\..\cocos2dx\platform\win32;$(ProjectDir)..\..\..\cocos2dx\platform\third_party\win32;$(ProjectDir)..\..\..\cocos2dx\platform\third_party\win32\OGLES;$(ProjectDir)..\..\..\cocos2dx\platform\third_party\win32\OpenalSoft;$(ProjectDir)..\..\..\external\sqlite3\include;$(ProjectDir)..\..\..\external;$(ProjectDir)..\..\..\CocosDenshion\include;$(ProjectDir)..\..\..\extensions;..\Classes;..;$(ProjectDir)..\..\..\external\glfw3\include\win32;$(ProjectDir)..\..\..\scripting\lua\cocos2dx_support;$(ProjectDir)..\..\..\scripting\lua\luajit\include;$(ProjectDir)..\..\..\scripting\lua\tolua;$(ProjectDir)..\..\..\scripting\lua\xxtea;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USE_MATH_DEFINES;GL_GLEXT_PROTOTYPES;_CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -131,9 +131,9 @@ xcopy /Y /Q "$(SolutionDir)$(Configuration).win32\*.exe" "$(SolutionDir)projects
       <LanguageStandard_C>Default</LanguageStandard_C>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>libExtensions.lib;libcocos2d.lib;libCocosDenshion.lib;opengl32.lib;glew32.lib;pthreadVCE2.lib;sqlite3.lib;glfw3.lib;liblua.lib;lua51.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>mfplat.lib;mfreadwrite.lib;mfuuid.lib;OpenAL32.lib;libExtensions.lib;libcocos2d.lib;libCocosDenshion.lib;opengl32.lib;glew32.lib;pthreadVCE2.lib;sqlite3.lib;glfw3.lib;liblua.lib;lua51.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(ProjectName).exe</OutputFile>
-      <AdditionalLibraryDirectories>$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(OutDir);$(ProjectDir)..\..\..\cocos2dx\platform\third_party\win32\libraries;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -160,6 +160,14 @@ xcopy /Y /Q "$(SolutionDir)$(Configuration).win32\*.exe" "$(SolutionDir)projects
     <ClCompile Include="..\Classes\BGLayer.cpp" />
     <ClCompile Include="..\Classes\CreditsLayer.cpp" />
     <ClCompile Include="..\Classes\Effect.cpp" />
+    <ClCompile Include="..\Classes\Video\CCVideoSprite.cpp" />
+    <ClCompile Include="..\Classes\Video\NullVideoBackend.cpp" />
+    <ClCompile Include="..\Classes\Video\PipelineBackend.cpp" />
+    <ClCompile Include="..\Classes\Video\VideoBackendFactory.cpp" />
+    <ClCompile Include="..\Classes\Video\VideoPlayback.cpp" />
+    <ClCompile Include="..\Classes\Video\Win32\ALPcmSink.cpp" />
+    <ClCompile Include="..\Classes\Video\Win32\MFRangeStream.cpp" />
+    <ClCompile Include="..\Classes\Video\Win32\MFVideoBackend.cpp" />
     <ClCompile Include="..\Classes\Element.cpp" />
     <ClCompile Include="..\Classes\GameLayer.cpp" />
     <ClCompile Include="..\Classes\GameOver.cpp" />
@@ -229,6 +237,15 @@ xcopy /Y /Q "$(SolutionDir)$(Configuration).win32\*.exe" "$(SolutionDir)projects
     <ClInclude Include="..\Classes\Systems\CameraZoom.hpp" />
     <ClInclude Include="..\Classes\Systems\ScreenShake.hpp" />
     <ClInclude Include="..\Classes\Systems\Initializer.hpp" />
+    <ClInclude Include="..\Classes\Video\CCVideoSprite.h" />
+    <ClInclude Include="..\Classes\Video\IVideoBackend.h" />
+    <ClInclude Include="..\Classes\Video\NullVideoBackend.h" />
+    <ClInclude Include="..\Classes\Video\PipelineBackend.h" />
+    <ClInclude Include="..\Classes\Video\VideoPlayback.h" />
+    <ClInclude Include="..\Classes\Video\VideoShader.hpp" />
+    <ClInclude Include="..\Classes\Video\Win32\ALPcmSink.h" />
+    <ClInclude Include="..\Classes\Video\Win32\MFRangeStream.h" />
+    <ClInclude Include="..\Classes\Video\Win32\MFVideoBackend.h" />
     <ClInclude Include="..\Classes\UI\GameModeLayer.h" />
     <ClInclude Include="..\Classes\UI\ModeMenuButton.hpp" />
     <ClInclude Include="main.h" />
