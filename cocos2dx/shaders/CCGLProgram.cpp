@@ -25,6 +25,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ****************************************************************************/
 
+#include <string>
+#include <string.h>
 #include "CCDirector.h"
 #include "CCGLProgram.h"
 #include "ccGLStateCache.h"
@@ -148,7 +150,21 @@ bool CCGLProgram::compileShader(GLuint * shader, GLenum type, const GLchar* sour
         return false;
     }
     
+    // "#extension" directives have to come before any other token, so lines of that kind at the
+    // start of the source (e.g. GL_OES_EGL_image_external) are put in front of the engine's prefix.
+    std::string extensions;
+    const GLchar *body = source;
+    while (strncmp(body, "#extension", 10) == 0)
+    {
+        const GLchar *eol = strchr(body, '\n');
+        if (!eol)
+            break;
+        extensions.append(body, eol + 1 - body);
+        body = eol + 1;
+    }
+
     const GLchar *sources[] = {
+        extensions.c_str(),
 #if (CC_TARGET_PLATFORM != CC_PLATFORM_WIN32 && CC_TARGET_PLATFORM != CC_PLATFORM_LINUX && CC_TARGET_PLATFORM != CC_PLATFORM_MAC)
         (type == GL_VERTEX_SHADER ? "precision highp float;\n" : "precision mediump float;\n"),
 #endif
@@ -160,7 +176,7 @@ bool CCGLProgram::compileShader(GLuint * shader, GLenum type, const GLchar* sour
         "uniform vec4 CC_CosTime;\n"
         "uniform vec4 CC_Random01;\n"
         "//CC INCLUDES END\n\n",
-        source,
+        body,
     };
 
     *shader = glCreateShader(type);
@@ -187,7 +203,9 @@ bool CCGLProgram::compileShader(GLuint * shader, GLenum type, const GLchar* sour
             CCLOG("cocos2d: %s", fragmentShaderLog());
         }
         free(src);
-		abort();
+        glDeleteShader(*shader);
+        *shader = 0;
+        return false;
     }
     return (status == GL_TRUE);
 }

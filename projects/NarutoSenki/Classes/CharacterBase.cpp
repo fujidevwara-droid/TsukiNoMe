@@ -255,6 +255,10 @@ const Stage& CharacterBase::stage() const
 	return getGameLayer()->stageOf(_stageId);
 }
 
+static const char* kChargeStartSound = "Audio/Effect/chakrastart.ogg";
+static const char* kChargeLoopSound = "Audio/Effect/chakraloop.ogg";
+static const float kChargeStartSoundSeconds = 2.5078f; // length of chakrastart.ogg
+
 void CharacterBase::update(float dt)
 {
 	if (_healBuffEffect)
@@ -285,6 +289,30 @@ void CharacterBase::update(float dt)
 	{
 		_speedItemEffect->setPosition(Vec2(_isFlipped ? getContentSize().width / 2 + 16 : getContentSize().width / 2 - 16,
 			_height));
+	}
+
+	// Chakra-charge aura: stays under the feet, and goes away on its own the
+	// moment the charge ends (release, hit, skill, death, swap, bench...).
+	if (_chargeEffect)
+	{
+		_chargeEffect->setPosition(Vec2(getContentSize().width / 2, 0));
+		const bool charging = (_isHoldingChakraCharge || _isAIChargingChakra) &&
+			!_isBenched && _state == State::IDLE;
+		if (!charging && !_isChargeEffectFading)
+			hideChargeEffect();
+	}
+
+	// chakrastart has finished: chakraloop takes over right away.
+	if (_isChargeSoundOn && !_isChargeLoopPlaying)
+	{
+		_chargeSoundTimer += dt;
+		if (_chargeSoundTimer >= kChargeStartSoundSeconds)
+		{
+			if (getGameLayer()->playCharacterSound(kChargeLoopSound, true, this, &_chargeLoopSoundId))
+				_isChargeLoopPlaying = true;
+			else
+				_isChargeSoundOn = false; // muted by a freeze: the charge is ending anyway
+		}
 	}
 
 	/*if(_kaguraEffect){
@@ -2735,7 +2763,7 @@ void CharacterBase::setSound(const string& file)
 		if (_isPlayable)
 		{
 			SimpleAudioEngine::sharedEngine()->preloadEffect(file.c_str());
-			SimpleAudioEngine::sharedEngine()->playEffect(file.c_str());
+			getGameLayer()->playCharacterSound(file.c_str(), false, this);
 		}
 	}
 }
@@ -2761,7 +2789,7 @@ void CharacterBase::setDSound(const string& file)
 		if (_isPlayable && _isHitOne)
 		{
 			SimpleAudioEngine::sharedEngine()->preloadEffect(file.c_str());
-			SimpleAudioEngine::sharedEngine()->playEffect(file.c_str());
+			getGameLayer()->playCharacterSound(file.c_str(), false, this);
 		}
 	}
 }
@@ -4639,6 +4667,11 @@ float CharacterBase::getHpPercent()
 
 void CharacterBase::attack(ABType type)
 {
+	// pauseEveryMovement: no normal attacks (it used to change the state even though
+	// the paused actions never played the animation).
+	if (type == NAttack && getGameLayer()->isFreezeActive())
+		return;
+
 	if (isActivePlayerBody() && type == NAttack)
 	{
 		if (!getGameLayer()->getSkillFinish() && !_isOnlySkillLocked)
@@ -4759,6 +4792,9 @@ void CharacterBase::attack(ABType type)
 
 void CharacterBase::nAttack()
 {
+	if (getGameLayer()->isFreezeActive())
+		return;
+
 	if (_state == State::IDLE || _state == State::WALK)
 	{
 		if (!_isAllAttackLocked || _isOnlySkillLocked)
@@ -4959,6 +4995,11 @@ void CharacterBase::idle()
 
 void CharacterBase::walk(Vec2 direction)
 {
+	// pauseEveryMovement: walk() is also where a hero turns around, and it set the
+	// flip and the WALK state even though the paused scheduler kept it from moving.
+	if (getGameLayer()->isFreezeActive())
+		return;
+
 	// Holding the ramen button in the arena: standing still is the one thing
 	// charging asks for. (The held joystick keeps asking; it is just ignored.)
 	if (_isHoldingChakraCharge)
@@ -5384,6 +5425,8 @@ void CharacterBase::dead()
 	getGameModeHandler()->onCharacterDead(this);
 	CCNotificationCenter::sharedNotificationCenter()->removeObserver(this, "acceptAttack");
 
+	hideChargeEffect(); // update() is unscheduled on death, so it cannot do this itself
+
 	_isHitOne = false;
 	_isCatchOne = false;
 	_isSticking = false;
@@ -5596,6 +5639,7 @@ void CharacterBase::beginDeparture()
 	_isAI = false;
 	stopAIChargeChakra();
 	_isHoldingChakraCharge = false;
+	hideChargeEffect();
 
 	// From here on it ignores hits (acceptAttack) and AI (doAI/setAI), exactly
 	// like a benched hero - it just has not been hidden or frozen yet.
@@ -6464,6 +6508,10 @@ void CharacterBase::tryAIChargeChakra()
 	if (!isDuelMode() || !_isAI || _isAIChargingChakra || _isBenched)
 		return;
 
+	// A boss charging in the middle of a pauseEveryMovement cutscene breaks it.
+	if (getGameLayer()->isFreezeActive())
+		return;
+
 	// Only the heroes of the roster charge. Summons, puppets and shadow clones run
 	// through the same AI tick, but they are not "holding the ramen button": letting
 	// them roll feeds their side's pool and freezes them in place for the charge.
@@ -6531,6 +6579,7 @@ void CharacterBase::tryAIChargeChakra()
 	_aiChargeInterruptAt = DuelChakra::kChargeSeconds * (0.2f + random(60) / 100.0f); // 20%..80% of a full hold
 
 	forceIdleStance();
+	showChargeEffect();
 	schedule(schedule_selector(CharacterBase::updateAIChargeChakra), 0.1f);
 }
 
@@ -6542,6 +6591,7 @@ void CharacterBase::updateAIChargeChakra(float dt)
 	auto &duel = getGameLayer()->duel();
 	const bool playerSide = duel.isPlayerSide(this);
 	if (!isDuelMode() || !_isAIChargingChakra || _isBenched || getState() != State::IDLE ||
+		getGameLayer()->isFreezeActive() ||
 		_aiChakraChargeHeld >= DuelChakra::kChargeSeconds || duel.chakra(playerSide) >= DuelChakra::kMax ||
 		(_aiChargeSelfInterrupts && _aiChakraChargeHeld >= _aiChargeInterruptAt))
 	{
@@ -6562,6 +6612,109 @@ void CharacterBase::stopAIChargeChakra()
 	_aiChakraChargeHeld = 0.0f;
 	_aiChargeSelfInterrupts = false;
 	unschedule(schedule_selector(CharacterBase::updateAIChargeChakra));
+}
+
+static const int kChargeEffectFadeTag = 0x43484152; // "CHAR"
+
+void CharacterBase::showChargeEffect()
+{
+	// Same distance rule as setSkillEffect: no aura for far off-screen heroes.
+	if (!isPlayer() && getGameLayer()->currentPlayer &&
+		abs((getPosition() - getGameLayer()->currentPlayer->getPosition()).x) >= winSize.width / 2)
+		return;
+
+	if (_chargeEffect)
+	{
+		// Charge resumed while the old aura was still fading out: bring it back.
+		if (_isChargeEffectFading)
+		{
+			_isChargeEffectFading = false;
+			_chargeEffect->stopActionByTag(kChargeEffectFadeTag);
+			auto fadeIn = CCFadeTo::create(0.15f, 255);
+			fadeIn->setTag(kChargeEffectFadeTag);
+			_chargeEffect->runAction(fadeIn);
+			startChargeSound();
+		}
+		return;
+	}
+
+	_chargeEffect = Effect::create("ChakraCharge", this);
+	if (!_chargeEffect)
+		return;
+	_chargeEffect->setPosition(Vec2(getContentSize().width / 2, 0));
+	_chargeEffect->setOpacity(0);
+	addChild(_chargeEffect, -1); // behind the hero
+	auto fadeIn = FadeIn::create(0.2f);
+	fadeIn->setTag(kChargeEffectFadeTag);
+	_chargeEffect->runAction(fadeIn);
+	startChargeSound();
+}
+
+void CharacterBase::hideChargeEffect()
+{
+	// Audio stops the instant the charge ends, whatever time it has left.
+	stopChargeSound();
+
+	if (!_chargeEffect || _isChargeEffectFading)
+		return;
+
+	_isChargeEffectFading = true;
+	_chargeEffect->stopActionByTag(kChargeEffectFadeTag);
+	auto effect = _chargeEffect;
+	auto fadeOut = Sequence::create(
+		FadeOut::create(0.2f),
+		CallFunc::create([this, effect]()
+		{
+			effect->removeFromParent();
+			if (_chargeEffect == effect)
+			{
+				_chargeEffect = nullptr;
+				_isChargeEffectFading = false;
+			}
+		}),
+		nullptr);
+	fadeOut->setTag(kChargeEffectFadeTag);
+	_chargeEffect->runAction(fadeOut);
+}
+
+void CharacterBase::startChargeSound()
+{
+	if (_isChargeSoundOn || !UserDefault::sharedUserDefault()->getBoolForKey("isVoice"))
+		return;
+
+	auto audio = SimpleAudioEngine::sharedEngine();
+	audio->preloadEffect(kChargeStartSound);
+	audio->preloadEffect(kChargeLoopSound);
+	if (!getGameLayer()->playCharacterSound(kChargeStartSound, false, this, &_chargeStartSoundId))
+		return;
+	_isChargeSoundOn = true;
+	_isChargeLoopPlaying = false;
+	_chargeSoundTimer = 0.0f;
+}
+
+void CharacterBase::stopChargeSound()
+{
+	if (!_isChargeSoundOn)
+		return;
+
+	auto audio = SimpleAudioEngine::sharedEngine();
+	// Once the loop has taken over, chakrastart is long finished: its id may be
+	// reused, so only stop it while it is the one that is playing.
+	if (_isChargeLoopPlaying)
+		audio->stopEffect(_chargeLoopSoundId);
+	else
+		audio->stopEffect(_chargeStartSoundId);
+
+	_isChargeSoundOn = false;
+	_isChargeLoopPlaying = false;
+	_chargeSoundTimer = 0.0f;
+}
+
+void CharacterBase::onExit()
+{
+	// Never leave a looping sound behind when the hero leaves the scene.
+	stopChargeSound();
+	Sprite::onExit();
 }
 
 void CharacterBase::increaseHpAndUpdateUI(uint32_t value)

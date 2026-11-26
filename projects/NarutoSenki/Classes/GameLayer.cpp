@@ -1676,6 +1676,8 @@ int GameLayer::freezeOthers(CharacterBase* caster, float failsafeSeconds)
 	}
 
 	_freezeId = ++_freezeCounter;
+	_freezeCaster = caster;
+	stopCharacterSounds(caster);
 	const int id = _freezeId;
 	runAction(newSequence(DelayTime::create(failsafeSeconds), CallFunc::create(std::bind(&GameLayer::releaseFreeze, this, id))));
 	return id;
@@ -1696,6 +1698,46 @@ void GameLayer::releaseFreeze(int id)
 	}
 	_frozenNodes.clear();
 	_freezeId = 0;
+	_freezeCaster = nullptr;
+}
+
+bool GameLayer::playCharacterSound(const char* file, bool loop, CharacterBase* owner, unsigned int* outId)
+{
+	// During pauseEveryMovement only the caster makes sound.
+	if (_freezeId != 0 && owner != _freezeCaster)
+		return false;
+
+	const unsigned int id = SimpleAudioEngine::sharedEngine()->playEffect(file, loop);
+	if (outId)
+		*outId = id;
+
+	for (auto& s : _characterSounds)
+	{
+		if (s.id == id)
+		{
+			s.owner = owner;
+			return true;
+		}
+	}
+	if (_characterSounds.size() >= 64)
+		_characterSounds.erase(_characterSounds.begin());
+	_characterSounds.push_back({ id, owner });
+	return true;
+}
+
+void GameLayer::stopCharacterSounds(CharacterBase* except)
+{
+	auto audio = SimpleAudioEngine::sharedEngine();
+	for (auto it = _characterSounds.begin(); it != _characterSounds.end();)
+	{
+		if (except && it->owner == except)
+		{
+			++it;
+			continue;
+		}
+		audio->stopEffect(it->id);
+		it = _characterSounds.erase(it);
+	}
 }
 
 void GameLayer::setOugis(CharacterBase* sender)
@@ -1735,7 +1777,7 @@ void GameLayer::setOugis(CharacterBase* sender)
 
 		if (UserDefault::sharedUserDefault()->getBoolForKey("isVoice"))
 		{
-			SimpleAudioEngine::sharedEngine()->playEffect(format("Audio/Ougis/{}_ougis.ogg", ougisChar->getName()).c_str());
+			playCharacterSound(format("Audio/Ougis/{}_ougis.ogg", ougisChar->getName()).c_str(), false, ougisChar);
 		}
 
 		_hudLayer->setOugis(ougisChar->getName(), ougisChar->getGroup());

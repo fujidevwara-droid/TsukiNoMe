@@ -103,6 +103,10 @@ void ActionButton::startChakraCharge()
 	if (_isChargingChakra)
 		return;
 
+	// No charging during a pauseEveryMovement cutscene.
+	if (getGameLayer()->isFreezeActive())
+		return;
+
 	auto player = getGameLayer()->currentPlayer;
 	if (!player)
 		return;
@@ -129,6 +133,7 @@ void ActionButton::startChakraCharge()
 	_chargingHero->_isHoldingChakraCharge = true;
 	if (state == State::WALK)
 		_chargingHero->forceIdleStance();
+	_chargingHero->showChargeEffect();
 
 	// No cooldown sweep: this button has no cooldown here, and the freeze
 	// animation would draw one. The rising bar is the feedback.
@@ -160,6 +165,7 @@ void ActionButton::updateChakraCharge(float dt)
 	// under it (a swap, a death).
 	auto player = getGameLayer()->currentPlayer;
 	if (!isDuelMode() || !_isChargingChakra || !player || player != _chargingHero ||
+		getGameLayer()->isFreezeActive() ||
 		!player->_isHoldingChakraCharge || player->getState() != State::IDLE)
 	{
 		stopChakraCharge();

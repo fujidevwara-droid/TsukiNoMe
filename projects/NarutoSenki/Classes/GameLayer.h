@@ -4,6 +4,7 @@
 #include "PauseLayer.h"
 #include "Data/UnitData.h"
 #include <memory>
+#include <vector>
 
 #if (CC_TARGET_PLATFORM == CC_PLATFORM_WIN32)
 #include "glfw3.h"
@@ -348,6 +349,23 @@ public:
 	// `caster`, which keeps animating. Returns an id for releaseFreeze(), or 0 if a freeze is
 	// already active. `failsafeSeconds` ends it anyway if the caster's animation is cut short.
 	int freezeOthers(CharacterBase *caster, float failsafeSeconds);
+	// True while a pauseEveryMovement freeze is running. During it nobody turns, starts a
+	// normal attack or charges chakra (the caster included: it only plays its animation).
+	bool isFreezeActive() const { return _freezeId != 0; }
+	// Every sound a character causes (voices, hit sounds, poof, ougis voice, chakra charge)
+	// goes through here, never straight to SimpleAudioEngine: UI sounds and the OST do not.
+	// pauseEveryMovement stops them all when it starts (the caster's own sounds are the
+	// cutscene and stay) and keeps everyone but the caster from starting new ones until it
+	// ends. Returns false when the sound was not played because of the freeze.
+	bool playCharacterSound(const char *file, bool loop, CharacterBase *owner, unsigned int *outId = nullptr);
+	void stopCharacterSounds(CharacterBase *except);
+	struct CharacterSound
+	{
+		unsigned int id;
+		CharacterBase *owner; // only compared, never dereferenced
+	};
+	std::vector<CharacterSound> _characterSounds;
+	CharacterBase *_freezeCaster = nullptr;
 	void releaseFreeze(int id);
 	int _freezeId = 0;
 	int _freezeCounter = 0;

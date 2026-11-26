@@ -103,6 +103,14 @@ public:
 	Sprite* _dehealBuffEffect;
 	Effect* _healItemEffect;
 	Effect* _speedItemEffect;
+	Effect* _chargeEffect = nullptr;
+	bool	_isChargeEffectFading = false;
+	// Charge audio: chakrastart once, then chakraloop until the charge ends.
+	bool	_isChargeSoundOn = false;
+	bool	_isChargeLoopPlaying = false;
+	unsigned int _chargeStartSoundId = 0;
+	unsigned int _chargeLoopSoundId = 0;
+	float	_chargeSoundTimer = 0.0f;
 	float				_buffStartTime;
 	float				_debuffStartTime;
 	VPROP(int, _knockLength, KnockLength);
@@ -568,6 +576,13 @@ public:
 	void				tryAIChargeChakra();
 	void				updateAIChargeChakra(float dt);
 	void				stopAIChargeChakra();
+	// Looping chakra-charge aura (player and AI). show is idempotent; the aura
+	// hides itself from update() as soon as the charge ends for any reason.
+	void				showChargeEffect();
+	void				hideChargeEffect();
+	void				startChargeSound();
+	void				stopChargeSound();
+	virtual void		onExit();
 	void				leaveBench(const Vec2 &pos, bool flipped);
 	virtual void		reborn(float dt);
 
