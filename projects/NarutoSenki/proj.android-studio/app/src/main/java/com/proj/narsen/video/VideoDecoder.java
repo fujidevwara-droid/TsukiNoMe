@@ -1,6 +1,8 @@
 package com.proj.narsen.video;
 
 import android.media.MediaCodec;
+import android.media.MediaCodecInfo;
+import android.media.MediaCodecList;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.util.Log;
@@ -26,13 +28,28 @@ final class VideoDecoder implements Runnable
 	private static final String TAG = "VideoDecoder";
 	private static final long PRESENT_LEAD_US = 5000;
 
+	// If the decoder has produced nothing visible after this long, it is replaced by a
+	// software decoder. Some hardware decoders (e.g. OMX.hisi on Huawei Kirin phones) accept
+	// the stream and play the sound but never put a picture on the surface.
+	private static final long STALL_LIMIT_NS = 2000000000L;
+
+	// Decoder diagnostics are logged as errors on purpose: that is the level that survives
+	// in an errors-only logcat capture. Set to false once the device problem is understood.
+	private static final boolean DIAG = true;
+
 	private final VideoPlayerCore core;
 	private final MediaExtractor extractor;
 	private final MediaFormat format;
 	private final String mime;
 	private final long frameDurationUs;
 
+	private Surface surface;
 	private MediaCodec codec;
+	private boolean triedSoftware;
+	private long decoderStartedNs;
+	private int outputFrames;      // pictures the decoder produced
+	private int renderedFrames;    // pictures sent to the surface
+	private long firstRenderNs;
 	private Thread thread;
 	private volatile boolean stop;
 
@@ -60,20 +77,108 @@ final class VideoDecoder implements Runnable
 	/** @return null on success, else why the decoder cannot be started. */
 	String start(Surface surface)
 	{
+		this.surface = surface;
+
+		String firstError;
 		try
 		{
 			codec = MediaCodec.createDecoderByType(mime);
+			diag("decoder: " + codec.getName() + " for " + mime);
 			codec.configure(format, surface, null, 0);
 			codec.start();
 		}
 		catch (Exception e)
 		{
+			firstError = e.toString();
 			releaseCodec();
-			return "cannot start the video decoder for " + mime + ": " + e;
+			diag("default decoder failed: " + firstError);
+
+			// the preferred decoder is broken: try a software one before giving up
+			try
+			{
+				startSoftware();
+			}
+			catch (Exception second)
+			{
+				releaseCodec();
+				return "cannot start the video decoder for " + mime + ": " + firstError
+					+ " (software decoder: " + second + ")";
+			}
 		}
 
+		decoderStartedNs = System.nanoTime();
 		thread = new Thread(this, "VideoDecoder");
 		thread.start();
+		return null;
+	}
+
+	/** Starts a software decoder for the mime on the surface. Throws if there is none or it fails. */
+	private void startSoftware() throws Exception
+	{
+		triedSoftware = true;
+
+		String name = findSoftwareDecoder(mime);
+		if (name == null)
+			throw new IllegalStateException("no software decoder for " + mime);
+
+		diag("software decoder: " + name);
+		codec = MediaCodec.createByCodecName(name);
+		codec.configure(format, surface, null, 0);
+		codec.start();
+	}
+
+	private static String findSoftwareDecoder(String mime)
+	{
+		try
+		{
+			for (MediaCodecInfo info : new MediaCodecList(MediaCodecList.REGULAR_CODECS).getCodecInfos())
+			{
+				if (info.isEncoder())
+					continue;
+
+				String name = info.getName();
+				if (!name.startsWith("OMX.google.") && !name.startsWith("c2.android."))
+					continue;
+
+				for (String type : info.getSupportedTypes())
+				{
+					if (type.equalsIgnoreCase(mime))
+						return name;
+				}
+			}
+		}
+		catch (Exception e)
+		{
+			diag("cannot list the decoders: " + e);
+		}
+		return null;
+	}
+
+	private static void diag(String message)
+	{
+		if (DIAG)
+			Log.e(TAG, message);
+	}
+
+	/**
+	 * @return why the picture is not getting through, or null if it is (or it is too early to say).
+	 * Two ways to fail: the decoder produces no picture at all, or its pictures never reach the
+	 * SurfaceTexture (no onFrameAvailable).
+	 */
+	private String stallReason()
+	{
+		long now = System.nanoTime();
+
+		if (outputFrames == 0)
+		{
+			if (now - decoderStartedNs > STALL_LIMIT_NS)
+				return "no picture after " + (now - decoderStartedNs) / 1000000L + " ms";
+		}
+		else if (renderedFrames > 0 && core.framesAvailable() == 0)
+		{
+			if (now - firstRenderNs > STALL_LIMIT_NS)
+				return renderedFrames + " pictures rendered, none arrived at the SurfaceTexture";
+		}
 		return null;
 	}
 
@@ -150,6 +255,22 @@ final class VideoDecoder implements Runnable
 					seeking = true;
 				}
 
+				if (!triedSoftware && !outputEos)
+				{
+					String reason = stallReason();
+					if (reason != null)
+					{
+						diag("decoder stalled (" + reason + "), switching to the software decoder");
+						releaseCodec();
+						startSoftware();
+						decoderStartedNs = System.nanoTime();
+						outputFrames = 0;
+						renderedFrames = 0;
+						epoch = -1; // everything the old decoder held is gone: seek again
+						continue;
+					}
+				}
+
 				if (outputEos)
 				{
 					core.sleepMs(10);
@@ -179,11 +300,19 @@ final class VideoDecoder implements Runnable
 
 				// drain
 				int out = codec.dequeueOutputBuffer(info, 5000);
+				if (out == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED)
+					diag("output format: " + codec.getOutputFormat());
 				if (out < 0)
 					continue; // nothing yet, or the output format changed (the surface copes)
 
 				boolean eos = (info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
 				boolean picture = info.size > 0 || !eos;
+				if (picture)
+				{
+					if (outputFrames == 0)
+						diag("first picture from the decoder, pts " + info.presentationTimeUs);
+					++outputFrames;
+				}
 				long pts = info.presentationTimeUs;
 
 				if (!picture)
@@ -250,7 +379,7 @@ final class VideoDecoder implements Runnable
 		{
 			if (!stop && !core.isClosed())
 			{
-				Log.w(TAG, "video stopped: " + e);
+				Log.e(TAG, "video stopped: " + e);
 				core.fail("video decoding failed: " + e);
 			}
 		}
@@ -267,6 +396,7 @@ final class VideoDecoder implements Runnable
 	{
 		core.videoSeekFrame(epoch, pts * 1000L);
 		codec.releaseOutputBuffer(index, true);
+		noteRendered();
 		return core.awaitSeekCommit(epoch, this);
 	}
 
@@ -293,6 +423,14 @@ final class VideoDecoder implements Runnable
 
 		boolean late = core.clockUs() - pts > frameDurationUs;
 		codec.releaseOutputBuffer(index, !late);
+		if (!late)
+			noteRendered();
 		return true;
+	}
+
+	private void noteRendered()
+	{
+		if (renderedFrames++ == 0)
+			firstRenderNs = System.nanoTime();
 	}
 }

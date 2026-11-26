@@ -63,6 +63,8 @@ public final class VideoPlayerCore
 	private HandlerThread frameThread;
 	private Handler frameHandler;
 	private final AtomicInteger pendingFrames = new AtomicInteger();
+	private final AtomicInteger totalFramesAvailable = new AtomicInteger(); // since attachGl
+	private boolean firstLatchLogged;
 	private long latchedTimestampNs = -1;
 	private final float[] latchedMatrix = new float[16];
 
@@ -273,6 +275,7 @@ public final class VideoPlayerCore
 				public void onFrameAvailable(SurfaceTexture texture)
 				{
 					pendingFrames.incrementAndGet();
+					totalFramesAvailable.incrementAndGet();
 				}
 			}, frameHandler);
 			surface = new Surface(surfaceTexture);
@@ -285,6 +288,8 @@ public final class VideoPlayerCore
 		}
 
 		pendingFrames.set(0);
+		totalFramesAvailable.set(0);
+		firstLatchLogged = false;
 		latchedTimestampNs = -1;
 
 		// Silent seek: on the very first start to 0 (it lines the audio up with the video),
@@ -323,6 +328,12 @@ public final class VideoPlayerCore
 
 		started = true;
 		return true;
+	}
+
+	/** Pictures the SurfaceTexture has been told about since the GL texture was attached. */
+	int framesAvailable()
+	{
+		return totalFramesAvailable.get();
 	}
 
 	/** The GL context is gone: stop the video side and remember where it was. */
@@ -562,6 +573,11 @@ public final class VideoPlayerCore
 				texture.updateTexImage();
 				latchedTimestampNs = texture.getTimestamp();
 				latched = true;
+				if (!firstLatchLogged)
+				{
+					firstLatchLogged = true;
+					Log.e(TAG, "first picture latched, timestamp " + latchedTimestampNs + " ns"); // diagnostics, see VideoDecoder.DIAG
+				}
 			}
 			catch (RuntimeException e)
 			{

@@ -39,6 +39,8 @@ public final class MediaCodec {
 		for (int i = 0; i < OUTPUTS; ++i) outputs[i] = ByteBuffer.allocate(video ? 16 : 4096).order(ByteOrder.LITTLE_ENDIAN);
 	}
 	public static MediaCodec createDecoderByType(String mime) { return new MediaCodec(mime); }
+	public static MediaCodec createByCodecName(String name) { return new MediaCodec("video/avc"); }
+	public String getName() { return "fake.decoder"; }
 
 	public void configure(MediaFormat f, Surface s, Object crypto, int flags) { format = f; surface = s; }
 	public synchronized void start() { formatChange = !video; }
